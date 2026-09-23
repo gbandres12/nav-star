@@ -4,7 +4,9 @@ import { ChevronLeft, ShoppingCart } from "lucide-react";
 import { SeatMap } from "@/components/seat-map";
 import { PrintButton } from "@/components/print-button";
 import { Badge, PageHeader, Stat } from "@/components/ui";
-import { assentosOcupados, cidade, db, embarcacao, horarioParada, linha, ocupacaoViagem, paradaInfo, viagem } from "@/lib/store";
+import { ViagemControles } from "@/components/admin/viagem-controles";
+import { operadorAtual } from "@/lib/sessao";
+import { assentosOcupados, capacidade, cidade, db, embarcacao, horarioParada, linha, mapaComodos, ocupacaoViagem, paradaInfo, passageirosPorSegmento, proximosStatus, rotuloAssento, tripulante, viagem } from "@/lib/store";
 import { dateShort, label, longDay, money, time } from "@/lib/format";
 
 export const metadata = { title: "Viagem" };
@@ -23,11 +25,15 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
     .sort((a, b) => a.origemOrdem - b.origemOrdem || a.nome.localeCompare(b.nome));
   const ocup = ocupacaoViagem(v);
   const encomendas = db().encomendas.filter((x) => x.viagemId === v.id);
-  const codigo = new Map(e.assentos.map((a) => [a.id, a.codigo]));
   const ocupadosSeg = assentosOcupados(v.id, seg, seg + 1);
-  const nomes = Object.fromEntries(passagens.filter((p) => p.origemOrdem <= seg && p.destinoOrdem > seg).map((p) => [p.assentoId, p.nome]));
+  const nomes = Object.fromEntries(passagens.filter((p) => p.assentoId && p.origemOrdem <= seg && p.destinoOrdem > seg).map((p) => [p.assentoId!, p.nome]));
+  const porSegmento = passageirosPorSegmento(v);
+  const cap = capacidade(e);
   const receita = passagens.filter((p) => p.status !== "RESERVADA").reduce((s, p) => s + p.valor, 0);
   const embarcados = passagens.filter((p) => p.status === "EMBARCADA").length;
+  const op = await operadorAtual();
+  const gestor = op.papel === "ADMIN" || op.papel === "GERENTE";
+  const tripulacao = v.tripulacao.map(tripulante).filter((t) => !!t);
 
   return (
     <>
@@ -44,7 +50,7 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
         actions={
           <>
             <PrintButton label="Imprimir manifesto" />
-            {v.status !== "CONCLUIDA" && (
+            {v.status !== "CONCLUIDA" && v.status !== "CANCELADA" && v.vendasAbertas && op.papel !== "CONFERENTE" && (
               <Link href={`/admin/vender/${v.id}?o=0&d=${l.paradas.length - 1}`} className="btn bg-emerald-500 text-white hover:bg-emerald-600">
                 <ShoppingCart size={16} /> Vender
               </Link>
@@ -60,6 +66,23 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
         <Stat label="Encomendas" value={encomendas.length} hint={`${encomendas.reduce((s, x) => s + x.pesoKg, 0).toLocaleString("pt-BR")} kg`} />
       </div>
 
+      {e.assentoLivre ? (
+        <div className="no-print card mt-6 p-5 sm:p-6">
+          <h2 className="mb-1 font-bold">Lotação por trecho</h2>
+          <p className="mb-4 text-sm text-slate-500">Assento livre: a {e.nome} leva {cap} passageiros e o embarque é por ordem de chegada.</p>
+          <ul className="space-y-2">
+            {porSegmento.map((n, i) => (
+              <li key={i} className="grid grid-cols-[minmax(0,1fr)_2fr_auto] items-center gap-3 text-sm">
+                <span className="truncate">{paradaInfo(l.id, i).cidade.nome} → {paradaInfo(l.id, i + 1).cidade.nome}</span>
+                <span className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                  <span className={`block h-full rounded-full ${n / cap >= 0.9 ? "bg-red-500" : n / cap >= 0.6 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, (n / cap) * 100)}%` }} />
+                </span>
+                <span className="text-slate-600 tabular-nums">{n}/{cap}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
       <div className="no-print card mt-6 p-5 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-bold">Mapa de ocupação por trecho</h2>
@@ -76,15 +99,32 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
             ))}
           </div>
         </div>
-        <SeatMap assentos={e.assentos} colunas={e.colunasMapa} ocupados={[...ocupadosSeg]} labels={nomes} />
+        <SeatMap assentos={e.assentos} colunas={e.colunasMapa} ocupados={[...ocupadosSeg]} labels={nomes} comodos={mapaComodos(e.id)} />
         <p className="mt-2 text-xs text-slate-500">Passe o mouse sobre a poltrona para ver o passageiro. {ocupadosSeg.size} ocupadas neste trecho.</p>
       </div>
+      )}
+
+      {gestor && (
+        <ViagemControles
+          v={v}
+          proximos={proximosStatus(v.status)}
+          tripulantes={db().tripulantes.filter((t) => t.ativo)}
+          embarcacoes={db().embarcacoes}
+        />
+      )}
 
       <div className="card mt-6 overflow-x-auto">
-        <div className="flex items-center justify-between p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-5">
           <h2 className="font-bold">Manifesto de passageiros</h2>
-          <span className="text-sm text-slate-500">{e.nome} · {dateShort(v.partida)} {time(v.partida)}</span>
+          <span className="text-sm text-slate-500">{e.nome} · Inscrição {e.inscricaoCapitania} · {dateShort(v.partida)} {time(v.partida)}</span>
         </div>
+        {tripulacao.length > 0 && (
+          <div className="border-t border-slate-100 px-5 py-3 text-sm">
+            <span className="font-semibold">Tripulação: </span>
+            {tripulacao.map((t) => `${t!.nome} (${label(t!.funcao).toLowerCase()}${t!.habilitacao !== "—" ? `, ${t!.habilitacao}` : ""})`).join(" · ")}
+            {v.observacao && <p className="mt-1 text-slate-500">Obs.: {v.observacao}</p>}
+          </div>
+        )}
         <table className="table-base">
           <thead>
             <tr><th>#</th><th>Poltrona</th><th>Passageiro</th><th>Documento</th><th>Tipo</th><th>Embarque</th><th>Desembarque</th><th>Pedido</th><th>Status</th></tr>
@@ -95,7 +135,7 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
               return (
                 <tr key={p.id}>
                   <td className="text-slate-400">{i + 1}</td>
-                  <td className="font-bold">{codigo.get(p.assentoId)}</td>
+                  <td className="font-bold">{rotuloAssento(p)}</td>
                   <td className="font-medium whitespace-nowrap">{p.nome}</td>
                   <td className="font-mono text-xs">{p.documento}</td>
                   <td>{label(p.tipo)}</td>

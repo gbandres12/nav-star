@@ -23,6 +23,8 @@
   --color-rubro-400: #cf3a2c;
   --color-rubro-500: #ab2317;
   --color-rubro-600: #8e1d13;
+  --color-rubro-700: #72170f;
+  --color-rubro-800: #58120b;
 }
 
 body {
@@ -93,6 +95,15 @@ body {
 }
 @page bilhete {
   size: 80mm 230mm;
+  margin: 0;
+}
+/* Bobina de 58 mm: o mesmo layout reduzido (zoom 0,725) numa página proporcional */
+.bilhete-58 {
+  page: bilhete58;
+  zoom: 0.725;
+}
+@page bilhete58 {
+  size: 58mm 170mm;
   margin: 0;
 }
 @media print {

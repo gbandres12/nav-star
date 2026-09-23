@@ -4,7 +4,9 @@ import { ChevronLeft } from "lucide-react";
 import { BilheteTermico } from "@/components/bilhete-termico";
 import { AutoPrint } from "@/components/auto-print";
 import { PrintButton } from "@/components/print-button";
-import { passagensDoPedido, pedidoPorCodigo } from "@/lib/store";
+import { PrintBilheteButton } from "@/components/print-bilhete-button";
+import { passagensDoPedido, pedidoPorCodigo } from "@/lib/data/pedidos";
+import { getConfig } from "@/lib/data/utils";
 
 export const metadata = { title: "Bilhete", robots: { index: false } };
 
@@ -12,9 +14,10 @@ export const metadata = { title: "Bilhete", robots: { index: false } };
 export default async function BilhetePage({ params, searchParams }: PageProps<"/bilhete/[codigo]">) {
   const { codigo } = await params;
   const sp = await searchParams;
-  const pedido = pedidoPorCodigo(codigo);
+  const pedido = await pedidoPorCodigo(codigo);
   if (!pedido) notFound();
-  const passagens = passagensDoPedido(pedido.id).filter((p) => p.status === "EMITIDA" || p.status === "EMBARCADA");
+  const passagens = (await passagensDoPedido(pedido.id)).filter((p) => p.status === "EMITIDA" || p.status === "EMBARCADA");
+  const config = await getConfig();
   const voltar = typeof sp.voltar === "string" && sp.voltar.startsWith("/") ? sp.voltar : `/pedido/${pedido.codigo}`;
 
   return (
@@ -24,9 +27,9 @@ export default async function BilhetePage({ params, searchParams }: PageProps<"/
           <ChevronLeft size={16} /> Voltar
         </Link>
         <p className="hidden text-sm text-slate-500 sm:block">
-          {passagens.length} bilhete(s) · papel 80 mm — na impressão escolha a impressora térmica ou “Salvar como PDF”
+          {passagens.length} bilhete(s) · papel {config.bilhete.larguraMm} mm — na impressão escolha a impressora térmica ou “Salvar como PDF”
         </p>
-        <PrintButton label="Imprimir" />
+        {voltar.startsWith("/admin") ? <PrintBilheteButton codigo={pedido.codigo} /> : <PrintButton label="Imprimir" />}
       </div>
 
       {pedido.status !== "PAGO" || passagens.length === 0 ? (
@@ -38,7 +41,7 @@ export default async function BilhetePage({ params, searchParams }: PageProps<"/
               <BilheteTermico passagem={p} pedido={pedido} />
             </div>
           ))}
-          {sp.imprimir === "1" && <AutoPrint />}
+          {sp.imprimir === "1" && <AutoPrint codigoPedido={pedido.codigo} />}
         </div>
       )}
     </div>

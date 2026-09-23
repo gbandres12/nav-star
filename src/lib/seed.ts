@@ -2,10 +2,16 @@ import { addDays, addMinutes, localDayKey, manausDate } from "./format";
 import type {
   Agencia,
   Assento,
+  CaixaSessao,
+  Cancelamento,
   CanalVenda,
   Cidade,
+  Comodo,
+  Configuracao,
+  Convenio,
   Embarcacao,
   Encomenda,
+  Festival,
   Linha,
   MetodoPagamento,
   Passagem,
@@ -14,6 +20,7 @@ import type {
   StatusEncomenda,
   StatusViagem,
   TipoPassageiro,
+  Tripulante,
   Usuario,
   Viagem,
 } from "./types";
@@ -29,6 +36,50 @@ export type Db = {
   encomendas: Encomenda[];
   usuarios: Usuario[];
   agencias: Agencia[];
+  comodos: Comodo[];
+  tripulantes: Tripulante[];
+  convenios: Convenio[];
+  caixas: CaixaSessao[];
+  cancelamentos: Cancelamento[];
+  festivais: Festival[];
+  config: Configuracao;
+};
+
+export const CONFIG_PADRAO: Configuracao = {
+  empresa: {
+    nome: "São Tomé Expresso",
+    razaoSocial: "Brigido Locação e Transportes de Navegação LTDA",
+    cnpj: "06.326.986/0001-70",
+    whatsapps: [
+      { cidade: "Manaus", numero: "(92) 99127-4661", link: "5592991274661" },
+      { cidade: "Santarém", numero: "(93) 99197-5141", link: "5593991975141" },
+    ],
+    whatsapp: "5592991274661", // principal (botões do site)
+    email: "contato@saotomeexpresso.com.br", // provisório
+    tipoServico: "Expresso",
+    beneficios: ["café", "almoço", "Wi-Fi grátis", "ambiente climatizado", "poltronas reclináveis"],
+    minutosReservaSite: 30,
+  },
+  valores: {
+    descontos: { INTEIRA: 0, CRIANCA: 0.5, COLO: 1, IDOSO: 0.5, ESTUDANTE: 0.5, PCD: 1 },
+    multaCancelamentoPct: 10,
+    horasCancelamentoSemMulta: 24,
+    taxaSistemaPct: 3,
+  },
+  bilhete: {
+    larguraMm: 80,
+    titulo: "CARTÃO DE EMBARQUE",
+    mostrarLogo: true,
+    mostrarValores: true,
+    mostrarQr: true,
+    mostrarBeneficios: true,
+    localEmbarque: "HIDROVIÁRIO",
+    antecedenciaEmbarqueMin: 60,
+    mensagens: [
+      "Para o embarque, apresente este bilhete impresso ou digital.",
+      "Chegue com pelo menos 1 hora de antecedência ao local de embarque.",
+    ],
+  },
 };
 
 // PRNG determinístico: os dados de exemplo ficam iguais a cada reinício
@@ -71,15 +122,26 @@ export function seed(now = new Date()): Db {
     { id: "juruti", nome: "Juruti", uf: "PA", sigla: "JRT" },
     { id: "obidos", nome: "Óbidos", uf: "PA", sigla: "OBI" },
     { id: "santarem", nome: "Santarém", uf: "PA", sigla: "STM" },
+    { id: "maues", nome: "Maués", uf: "AM", sigla: "MBZ" },
   ];
 
   const portos: Porto[] = [
-    { id: "p-manaus", cidadeId: "manaus", nome: "Balsa Amarela", endereco: "Av. Lourenço da Silva Braga, Centro", taxaEmbarque: 5 },
-    { id: "p-itacoatiara", cidadeId: "itacoatiara", nome: "Porto Velho", endereco: "Orla de Itacoatiara", taxaEmbarque: 0 },
-    { id: "p-parintins", cidadeId: "parintins", nome: "Porto Municipal", endereco: "Av. Amazonas, Centro", taxaEmbarque: 3 },
-    { id: "p-juruti", cidadeId: "juruti", nome: "Porto de Juruti", endereco: "Orla de Juruti", taxaEmbarque: 0 },
-    { id: "p-obidos", cidadeId: "obidos", nome: "Cais de Óbidos", endereco: "Orla de Óbidos", taxaEmbarque: 0 },
-    { id: "p-santarem", cidadeId: "santarem", nome: "Hidroviário Tapajós", endereco: "Av. Tapajós, Centro", taxaEmbarque: 5 },
+    { id: "p-manaus", cidadeId: "manaus", nome: "Balsa Amarela", endereco: "Av. Lourenço da Silva Braga, Centro", taxaEmbarque: 5, ativo: true },
+    { id: "p-itacoatiara", cidadeId: "itacoatiara", nome: "Porto Velho", endereco: "Orla de Itacoatiara", taxaEmbarque: 0, ativo: true },
+    { id: "p-parintins", cidadeId: "parintins", nome: "Porto Municipal", endereco: "Av. Amazonas, Centro", taxaEmbarque: 3, ativo: true },
+    { id: "p-juruti", cidadeId: "juruti", nome: "Porto de Juruti", endereco: "Orla de Juruti", taxaEmbarque: 0, ativo: true },
+    { id: "p-obidos", cidadeId: "obidos", nome: "Cais de Óbidos", endereco: "Orla de Óbidos", taxaEmbarque: 0, ativo: true },
+    { id: "p-maues", cidadeId: "maues", nome: "Porto de Maués", endereco: "Orla de Maués", taxaEmbarque: 2, ativo: true },
+    { id: "p-santarem", cidadeId: "santarem", nome: "Hidroviário Tapajós", endereco: "Av. Tapajós, Centro", taxaEmbarque: 5, ativo: true },
+  ];
+
+  // Cômodos (acomodações) de cada embarcação — o acréscimo soma na tarifa do trecho
+  const comodos: Comodo[] = [
+    { id: "cm-st1-preferencial", embarcacaoId: "sao-tome-expresso", nome: "Preferencial", descricao: "1ª fileira, reservada a idosos, gestantes e PCD", acrescimo: 0, cor: "rio", ativo: true },
+    { id: "cm-st1-executiva", embarcacaoId: "sao-tome-expresso", nome: "Executiva", descricao: "Fileiras 2 a 5: mais espaço entre poltronas e tomada USB", acrescimo: 40, cor: "sol", ativo: true },
+    { id: "cm-st1-convencional", embarcacaoId: "sao-tome-expresso", nome: "Convencional", descricao: "Poltrona reclinável, ambiente climatizado", acrescimo: 0, cor: "slate", ativo: true },
+    { id: "cm-st2-convencional", embarcacaoId: "sao-tome-ii", nome: "Convencional", descricao: "Poltrona reclinável", acrescimo: 0, cor: "slate", ativo: true },
+    { id: "cm-st2-camarote", embarcacaoId: "sao-tome-ii", nome: "Camarote", descricao: "Cabine com 2 leitos e ar-condicionado", acrescimo: 180, cor: "rubro", ativo: true },
   ];
 
   // 32 fileiras × 4 poltronas (A B | corredor | C D) = 128 lugares
@@ -93,8 +155,25 @@ export function seed(now = new Date()): Db {
         fileira: f,
         coluna: col,
         tipo: f === 1 ? "ESPECIAL" : col === 0 || col === 4 ? "POLTRONA_JANELA" : "POLTRONA",
+        comodoId: f === 1 ? "cm-st1-preferencial" : f <= 5 ? "cm-st1-executiva" : "cm-st1-convencional",
       });
     });
+  }
+  // Segunda lancha (em manutenção): 20 fileiras de poltronas + 4 camarotes na proa
+  const assentos2: Assento[] = [];
+  for (let f = 1; f <= 22; f++) {
+    const cols: [string, number][] = f > 20 ? [["A", 0], ["D", 4]] : [["A", 0], ["B", 1], ["C", 3], ["D", 4]];
+    for (const [l, col] of cols) {
+      const camarote = f > 20;
+      assentos2.push({
+        id: `st2-${f}${l}`,
+        codigo: camarote ? `CAM${(f - 21) * 2 + (col === 0 ? 1 : 2)}` : `${f}${l}`,
+        fileira: f,
+        coluna: col,
+        tipo: col === 0 || col === 4 ? "POLTRONA_JANELA" : "POLTRONA",
+        comodoId: camarote ? "cm-st2-camarote" : "cm-st2-convencional",
+      });
+    }
   }
   const embarcacoes: Embarcacao[] = [
     {
@@ -107,7 +186,56 @@ export function seed(now = new Date()): Db {
       status: "ATIVA",
       colunasMapa: 5,
       assentos,
+      ano: 2019,
+      comprimentoM: 32,
     },
+    {
+      id: "sao-tome-ii",
+      nome: "São Tomé II",
+      tipo: "LANCHA",
+      inscricaoCapitania: "021-051230-4",
+      capacidadePassageiros: assentos2.length,
+      capacidadeCargaKg: 2000,
+      status: "MANUTENCAO",
+      colunasMapa: 5,
+      assentos: assentos2,
+      ano: 2015,
+      comprimentoM: 26,
+      observacao: "Revisão dos motores prevista para o fim do mês",
+    },
+    {
+      id: "expresso-maues",
+      nome: "Expresso Maués",
+      tipo: "LANCHA",
+      inscricaoCapitania: "021-060412-7",
+      capacidadePassageiros: 60,
+      capacidadeCargaKg: 800,
+      status: "ATIVA",
+      colunasMapa: 5,
+      assentos: [],
+      assentoLivre: true,
+      ano: 2021,
+      comprimentoM: 18,
+      observacao: "Assento livre: embarque por ordem de chegada",
+    },
+  ];
+
+  const tripulantes: Tripulante[] = [
+    { id: "tr-raimundo", nome: "Raimundo Brito", funcao: "COMANDANTE", documento: "512.334.872-10", habilitacao: "CIR 021M2009001234", validadeHabilitacao: "2027-08-15", telefone: "(92) 99111-2233", embarcacaoId: "sao-tome-expresso", ativo: true },
+    { id: "tr-jose", nome: "José Tavares", funcao: "COMANDANTE", documento: "421.998.332-04", habilitacao: "CIR 021M2012004411", validadeHabilitacao: "2026-10-30", telefone: "(92) 99222-4455", ativo: true },
+    { id: "tr-marcos", nome: "Marcos Andrade", funcao: "IMEDIATO", documento: "733.120.552-91", habilitacao: "CIR 021M2014007788", validadeHabilitacao: "2028-02-01", telefone: "(92) 99333-1010", embarcacaoId: "sao-tome-expresso", ativo: true },
+    { id: "tr-edivaldo", nome: "Edivaldo Pinto", funcao: "MAQUINISTA", documento: "812.456.991-20", habilitacao: "CIR 021M2011003321", validadeHabilitacao: "2027-01-20", telefone: "(92) 99444-7788", embarcacaoId: "sao-tome-expresso", ativo: true },
+    { id: "tr-luan", nome: "Luan Castro", funcao: "MARINHEIRO", documento: "021.556.782-33", habilitacao: "CIR 021M2019009876", validadeHabilitacao: "2029-05-12", telefone: "(92) 99555-3344", embarcacaoId: "sao-tome-expresso", ativo: true },
+    { id: "tr-diego", nome: "Diego Moraes", funcao: "MARINHEIRO", documento: "334.887.120-55", habilitacao: "CIR 021M2020001122", validadeHabilitacao: "2026-09-30", telefone: "(92) 99666-9900", embarcacaoId: "sao-tome-expresso", ativo: true },
+    { id: "tr-socorro", nome: "Socorro Farias", funcao: "TAIFEIRO", documento: "445.221.009-81", habilitacao: "CIR 021M2016005566", validadeHabilitacao: "2027-11-02", telefone: "(92) 99777-1212", embarcacaoId: "sao-tome-expresso", ativo: true },
+    { id: "tr-leticia", nome: "Letícia Barbosa", funcao: "COMISSARIO", documento: "556.009.334-12", habilitacao: "—", telefone: "(92) 99888-3434", ativo: true },
+  ];
+  const TRIPULACAO_PADRAO = ["tr-raimundo", "tr-marcos", "tr-edivaldo", "tr-luan", "tr-diego", "tr-socorro"];
+
+  const convenios: Convenio[] = [
+    { id: "cv-pref-parintins", nome: "Prefeitura de Parintins (TFD)", cnpj: "04.329.736/0001-69", descontoPercentual: 100, faturado: true, contato: "Secretaria de Saúde · (92) 3533-2020", ativo: true },
+    { id: "cv-seduc", nome: "SEDUC-AM · Professores da rede estadual", descontoPercentual: 20, faturado: false, contato: "seduc.am.gov.br", ativo: true },
+    { id: "cv-mineradora", nome: "Mineração Juruti (colaboradores)", cnpj: "05.001.221/0001-40", descontoPercentual: 15, faturado: true, contato: "RH · (93) 3536-1000", ativo: true },
   ];
 
   // Preços a partir de Manaus (valores das telas atuais) — demais trechos pela diferença
@@ -135,7 +263,25 @@ export function seed(now = new Date()): Db {
       { diaSemana: 3, horaSaida: "06:00", embarcacaoId: "sao-tome-expresso" },
       { diaSemana: 6, horaSaida: "06:00", embarcacaoId: "sao-tome-expresso" },
     ]),
+    // Linha curta com lancha de assento livre
+    {
+      id: "manaus-maues",
+      nome: "Manaus → Maués",
+      ativa: true,
+      paradas: [{ ordem: 0, portoId: "p-manaus", minutosDesdeOrigem: 0 }, { ordem: 1, portoId: "p-maues", minutosDesdeOrigem: 480 }],
+      tarifas: { 0: { 1: 150 }, 1: {} },
+      horarios: [{ diaSemana: 2, horaSaida: "07:00", embarcacaoId: "expresso-maues" }, { diaSemana: 4, horaSaida: "07:00", embarcacaoId: "expresso-maues" }],
+    },
+    {
+      id: "maues-manaus",
+      nome: "Maués → Manaus",
+      ativa: true,
+      paradas: [{ ordem: 0, portoId: "p-maues", minutosDesdeOrigem: 0 }, { ordem: 1, portoId: "p-manaus", minutosDesdeOrigem: 480 }],
+      tarifas: { 0: { 1: 150 }, 1: {} },
+      horarios: [{ diaSemana: 3, horaSaida: "07:00", embarcacaoId: "expresso-maues" }, { diaSemana: 5, horaSaida: "07:00", embarcacaoId: "expresso-maues" }],
+    },
   ];
+  const PREFIXO: Record<string, string> = { "manaus-santarem": "MS", "santarem-manaus": "SM", "manaus-maues": "MM", "maues-manaus": "MA" };
 
   // Viagens: -35 a +45 dias a partir da programação semanal
   const viagens: Viagem[] = [];
@@ -153,13 +299,14 @@ export function seed(now = new Date()): Db {
         else if (partida <= now) status = "EM_CURSO";
         else if (partida.getTime() - now.getTime() < 3 * 3600_000) status = "EMBARQUE";
         viagens.push({
-          id: `${l.id === "manaus-santarem" ? "MS" : "SM"}-${localDayKey(partida).replaceAll("-", "")}`,
+          id: `${PREFIXO[l.id]}-${localDayKey(partida).replaceAll("-", "")}`,
           linhaId: l.id,
           embarcacaoId: h.embarcacaoId,
           partida: partida.toISOString(),
           status,
           comandante: "Cmte. Raimundo Brito",
           vendasAbertas: true,
+          tripulacao: h.embarcacaoId === "sao-tome-expresso" ? [...TRIPULACAO_PADRAO] : ["tr-jose", "tr-leticia"],
         });
       }
     }
@@ -191,17 +338,22 @@ export function seed(now = new Date()): Db {
     if (partida > horizonte) continue;
     const linha = linhas.find((l) => l.id === v.linhaId)!;
     const nSeg = linha.paradas.length - 1;
+    const barco = embarcacoes.find((e) => e.id === v.embarcacaoId)!;
+    // Assento livre: "lugares" virtuais só para controlar a lotação; a passagem sai sem poltrona
+    const lugares: Assento[] = barco.assentoLivre
+      ? Array.from({ length: barco.capacidadePassageiros }, (_, i) => ({ id: `livre-${i}`, codigo: "", fileira: 0, coluna: 0, tipo: "POLTRONA" as const }))
+      : barco.assentos;
     const ocupado = new Map<string, boolean[]>();
     const diasAte = (partida.getTime() - now.getTime()) / 86_400_000;
     const alvo = diasAte < 0 ? 0.45 + r() * 0.35 : Math.max(0.05, 0.6 - diasAte * 0.045) * (0.8 + r() * 0.3);
-    let tentativas = Math.round(assentos.length * alvo * 0.75);
+    let tentativas = Math.round(lugares.length * alvo * 0.75);
 
     while (tentativas-- > 0) {
       // Maioria embarca na origem da linha; alguns em paradas intermediárias
-      const o = r() < 0.65 ? 0 : Math.floor(r() * (nSeg - 1)) + 1;
+      const o = nSeg === 1 || r() < 0.65 ? 0 : Math.floor(r() * (nSeg - 1)) + 1;
       const dst = r() < 0.5 ? nSeg : o + 1 + Math.floor(r() * (nSeg - o));
       const qtd = r() < 0.6 ? 1 : r() < 0.7 ? 2 : 3;
-      const livres = assentos.filter((a) => {
+      const livres = lugares.filter((a) => {
         const occ = ocupado.get(a.id);
         return !occ || occ.slice(o, dst).every((x) => !x);
       });
@@ -216,6 +368,7 @@ export function seed(now = new Date()): Db {
       const metodo: MetodoPagamento =
         canal === "SITE" ? (r() < 0.7 ? "PIX" : "CARTAO_CREDITO") : pick(["PIX", "PIX", "DINHEIRO", "CARTAO_DEBITO", "CARTAO_CREDITO"]);
       const pendente = canal === "SITE" && diasAte > 0 && r() < 0.06;
+      const convenio = canal === "BALCAO" && r() < 0.06 ? pick(convenios) : undefined;
       const comprador = nome();
       const pedidoId = `ped-${++pid}`;
       const origemPorto = portos.find((p) => p.id === linha.paradas[o].portoId)!;
@@ -227,15 +380,16 @@ export function seed(now = new Date()): Db {
         for (let s = o; s < dst; s++) occ[s] = true;
         ocupado.set(a.id, occ);
         const tipo: TipoPassageiro = i > 0 && r() < 0.25 ? "CRIANCA" : r() < 0.05 ? "IDOSO" : "INTEIRA";
-        const cheio = linha.tarifas[o][dst];
-        const valor = tipo === "CRIANCA" ? cheio / 2 : tipo === "IDOSO" ? cheio * 0.5 : cheio;
+        const acrescimo = comodos.find((c) => c.id === a.comodoId)?.acrescimo ?? 0;
+        const desc = Math.max(CONFIG_PADRAO.valores.descontos[tipo], (convenio?.descontoPercentual ?? 0) / 100);
+        const valor = Math.round((linha.tarifas[o][dst] + acrescimo) * (1 - desc) * 100) / 100;
         subtotal += valor;
         taxas += origemPorto.taxaEmbarque;
         passagens.push({
           id: `pas-${passagens.length + 1}`,
           pedidoId,
           viagemId: v.id,
-          assentoId: a.id,
+          assentoId: barco.assentoLivre ? undefined : a.id,
           origemOrdem: o,
           destinoOrdem: dst,
           nome: i === 0 ? comprador : nome(),
@@ -250,11 +404,17 @@ export function seed(now = new Date()): Db {
               : "EMITIDA",
           qrToken: makeCode(r, "QR", 12),
           embarcadoEm: v.status === "CONCLUIDA" || v.status === "EM_CURSO" ? v.partida : undefined,
+          validadoPorId: v.status === "CONCLUIDA" || v.status === "EM_CURSO" ? "u-conferente" : undefined,
+          acrescimo,
+          impressoes: pendente ? 0 : canal === "SITE" ? (r() < 0.5 ? 1 : 0) : 1,
         });
       });
 
       const agencia = canal === "AGENCIA" ? pick(agencias) : undefined;
       const total = subtotal + taxas;
+      if (convenio) {
+        for (const pas of passagens.filter((x) => x.pedidoId === pedidoId)) pas.convenioId = convenio.id;
+      }
       pedidos.push({
         id: pedidoId,
         codigo: makeCode(r, "ST"),
@@ -276,10 +436,10 @@ export function seed(now = new Date()): Db {
         pagamentos: [
           {
             id: `pg-${pid}`,
-            metodo,
-            status: pendente ? "PENDENTE" : "APROVADO",
+            metodo: convenio?.faturado ? "FATURADO" : metodo,
+            status: pendente || convenio?.faturado ? "PENDENTE" : "APROVADO",
             valor: total,
-            pagoEm: pendente ? undefined : criado.toISOString(),
+            pagoEm: pendente || convenio?.faturado ? undefined : criado.toISOString(),
           },
         ],
       });
@@ -300,7 +460,7 @@ export function seed(now = new Date()): Db {
 
   // Encomendas
   const encomendas: Encomenda[] = [];
-  const recentes = viagens.filter((v) => Math.abs(new Date(v.partida).getTime() - now.getTime()) < 20 * 86_400_000);
+  const recentes = viagens.filter((v) => v.embarcacaoId === "sao-tome-expresso" && Math.abs(new Date(v.partida).getTime() - now.getTime()) < 20 * 86_400_000);
   for (let i = 0; i < 46; i++) {
     const v = pick(recentes);
     const linha = linhas.find((l) => l.id === v.linhaId)!;
@@ -356,5 +516,128 @@ export function seed(now = new Date()): Db {
   }
   encomendas.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  return { cidades, portos, embarcacoes, linhas, viagens, pedidos, passagens, encomendas, usuarios, agencias };
+  // Festivais: viagens extras (avulsas) ligadas a cada evento, vendidas com tarifa especial
+  const extra = (linhaId: string, prefixo: string, y: number, m: number, d: number, h: number): Viagem => ({
+    id: `${prefixo}-${y}${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}-FEST`,
+    linhaId,
+    embarcacaoId: "sao-tome-expresso",
+    partida: manausDate(y, m - 1, d, h).toISOString(),
+    status: "PROGRAMADA",
+    comandante: "Cmte. Raimundo Brito",
+    vendasAbertas: true,
+    tripulacao: [...TRIPULACAO_PADRAO],
+    avulsa: true,
+  });
+  const ano = Number(localDayKey(now).slice(0, 4)) + 1;
+  const viagensParintins = [extra("manaus-santarem", "MS", ano, 6, 24, 3), extra("manaus-santarem", "MS", ano, 6, 25, 3), extra("santarem-manaus", "SM", ano, 6, 29, 6), extra("santarem-manaus", "SM", ano, 6, 30, 6)];
+  const viagensJuruti = [extra("manaus-santarem", "MS", ano, 7, 22, 3), extra("santarem-manaus", "SM", ano, 7, 27, 6)];
+  viagens.push(...viagensParintins, ...viagensJuruti);
+  viagens.sort((a, b) => a.partida.localeCompare(b.partida));
+  const festivais: Festival[] = [
+    {
+      id: "fest-parintins",
+      slug: `festival-de-parintins-${ano}`,
+      nome: `Festival de Parintins ${ano}`,
+      chamada: "Garantido × Caprichoso no Bumbódromo",
+      descricao: "O maior festival folclórico da Amazônia. Saídas extras de Manaus e de Santarém para as três noites de apresentação dos bois, com volta logo após o festival.",
+      cidadeId: "parintins",
+      inicio: `${ano}-06-26`,
+      fim: `${ano}-06-28`,
+      acrescimoPercentual: 20,
+      viagemIds: viagensParintins.map((v) => v.id),
+      cor: "rubro",
+      publicado: true,
+    },
+    {
+      id: "fest-juruti",
+      slug: `festribal-juruti-${ano}`,
+      nome: `Festribal de Juruti ${ano}`,
+      chamada: "Muirapinima × Munduruku",
+      descricao: "Festival das tribos de Juruti, no oeste do Pará. Viagem extra saindo de Manaus e retorno depois da última noite.",
+      cidadeId: "juruti",
+      inicio: `${ano}-07-23`,
+      fim: `${ano}-07-25`,
+      acrescimoPercentual: 10,
+      viagemIds: viagensJuruti.map((v) => v.id),
+      cor: "emerald",
+      publicado: true,
+    },
+  ];
+
+  // Cancelamentos: ~2,5% dos pedidos pagos foram cancelados (reembolso com ou sem multa)
+  const cancelamentos: Cancelamento[] = [];
+  for (const p of pedidos) {
+    if (p.status !== "PAGO" || p.canal === "AGENCIA" || p.pagamentos[0].metodo === "FATURADO" || r() > 0.025) continue;
+    const pas = passagens.filter((x) => x.pedidoId === p.id);
+    const v = viagens.find((x) => x.id === pas[0].viagemId)!;
+    const quando = new Date(Math.min(now.getTime() - 3600_000, new Date(p.createdAt).getTime() + r() * (new Date(v.partida).getTime() - new Date(p.createdAt).getTime())));
+    if (quando <= new Date(p.createdAt)) continue;
+    const horasAntes = (new Date(v.partida).getTime() - quando.getTime()) / 3600_000;
+    const multa = horasAntes >= CONFIG_PADRAO.valores.horasCancelamentoSemMulta ? 0 : Math.round(p.total * CONFIG_PADRAO.valores.multaCancelamentoPct) / 100;
+    for (const x of pas) x.status = "CANCELADA";
+    p.status = "REEMBOLSADO";
+    p.pagamentos[0].status = "ESTORNADO";
+    cancelamentos.push({
+      id: `can-${cancelamentos.length + 1}`,
+      pedidoId: p.id,
+      passagemIds: pas.map((x) => x.id),
+      motivo: pick(["Desistência da viagem", "Mudança de data", "Problema de saúde", "Comprou em duplicidade"]),
+      valorPago: p.total,
+      multa,
+      reembolso: Math.round((p.total - multa) * 100) / 100,
+      usuarioId: p.vendedorId ?? "u-gerente",
+      createdAt: quando.toISOString(),
+    });
+  }
+
+  // Caixas do balcão: uma sessão por vendedor e dia com vendas; a de hoje fica aberta
+  const caixas: CaixaSessao[] = [];
+  const hoje = localDayKey(now);
+  const grupos = new Map<string, Pedido[]>();
+  for (const p of pedidos) {
+    if (p.canal !== "BALCAO" || !p.vendedorId) continue;
+    const k = `${p.vendedorId}|${localDayKey(p.createdAt)}`;
+    grupos.set(k, [...(grupos.get(k) ?? []), p]);
+  }
+  for (const [k, ps] of [...grupos.entries()].sort((a, b) => a[0].split("|")[1].localeCompare(b[0].split("|")[1]))) {
+    const [usuarioId, dia] = k.split("|");
+    const [y, m, d] = dia.split("-").map(Number);
+    const id = `cx-${caixas.length + 1}`;
+    const dinheiro = ps.filter((p) => p.pagamentos[0].metodo === "DINHEIRO" && p.pagamentos[0].status !== "PENDENTE").reduce((s, p) => s + p.total, 0);
+    const sangria = dinheiro > 1500 ? Math.floor(dinheiro / 1000) * 500 : 0;
+    const abertoEm = manausDate(y, m - 1, d, 5, 30);
+    const aberto = dia === hoje;
+    const diferenca = aberto ? 0 : [0, 0, 0, 0, -5, 2, -10][Math.floor(r() * 7)];
+    for (const p of ps) p.pagamentos[0].caixaId = id;
+    caixas.push({
+      id,
+      usuarioId,
+      abertoEm: abertoEm.toISOString(),
+      fechadoEm: aberto ? undefined : manausDate(y, m - 1, d, 18, Math.floor(r() * 50)).toISOString(),
+      valorAbertura: 100,
+      valorContado: aberto ? undefined : Math.round((100 + dinheiro - sangria + diferenca) * 100) / 100,
+      movimentos: sangria ? [{ tipo: "SANGRIA", valor: sangria, observacao: "Depósito no banco", createdAt: manausDate(y, m - 1, d, 12).toISOString() }] : [],
+      observacao: diferenca < 0 ? "Diferença de troco" : undefined,
+    });
+  }
+
+  return {
+    cidades,
+    portos,
+    embarcacoes,
+    linhas,
+    viagens,
+    pedidos,
+    passagens,
+    encomendas,
+    usuarios,
+    agencias,
+    comodos,
+    tripulantes,
+    convenios,
+    caixas,
+    cancelamentos,
+    festivais,
+    config: structuredClone(CONFIG_PADRAO),
+  };
 }

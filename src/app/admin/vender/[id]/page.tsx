@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { BookingFlow } from "@/components/booking-flow";
 import { TripSummary } from "@/components/trip-summary";
-import { assentosOcupados, embarcacao, horarioParada, linha, paradaInfo, viagem } from "@/lib/store";
+import { tarifaViagem, acrescimosEmbarcacao, assentosOcupados, livresSemAcrescimo, lugaresLivres, caixaAberto, config, db, embarcacao, horarioParada, linha, mapaComodos, paradaInfo, viagem } from "@/lib/store";
+import { garantirAcesso } from "@/lib/sessao";
 
 export const metadata = { title: "Nova venda" };
 
 export default async function VenderViagem({ params, searchParams }: PageProps<"/admin/vender/[id]">) {
+  const op = await garantirAcesso("/admin/vender");
   const { id } = await params;
   const sp = await searchParams;
   const v = viagem(id);
@@ -28,17 +30,29 @@ export default async function VenderViagem({ params, searchParams }: PageProps<"
       <h1 className="mb-6 text-2xl font-bold tracking-tight">
         Venda: {origem.cidade.nome} → {destino.cidade.nome}
       </h1>
+      {!caixaAberto(op.id) && (
+        <p className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Seu caixa está fechado: vendas em dinheiro ficam bloqueadas.
+          <Link href="/admin/caixa" className="font-semibold underline">Abrir caixa</Link>
+        </p>
+      )}
       <BookingFlow
         viagemId={v.id}
         origemOrdem={o}
         destinoOrdem={d}
-        valor={l.tarifas[o][d]}
+        valor={tarifaViagem(v, o, d)}
         taxa={origem.porto.taxaEmbarque}
         assentos={e.assentos}
         colunas={e.colunasMapa}
         ocupados={[...assentosOcupados(v.id, o, d)]}
         canal="BALCAO"
-        vendedorId="u-balcao-mao"
+        descontos={config().valores.descontos}
+        acrescimos={acrescimosEmbarcacao(e.id)}
+        livresSemAcrescimo={livresSemAcrescimo(v.id, o, d)}
+        livres={lugaresLivres(v, o, d)}
+        assentoLivre={!!e.assentoLivre}
+        comodos={mapaComodos(e.id)}
+        convenios={db().convenios.filter((c) => c.ativo).map(({ id, nome, descontoPercentual, faturado }) => ({ id, nome, descontoPercentual, faturado }))}
         resumo={<TripSummary origem={origem} destino={destino} saida={horarioParada(v, o)} chegada={horarioParada(v, d)} embarcacao={e.nome} />}
       />
     </>

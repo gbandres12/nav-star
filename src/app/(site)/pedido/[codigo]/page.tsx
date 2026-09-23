@@ -3,18 +3,20 @@ import { notFound } from "next/navigation";
 import { CircleCheck, CircleX, Download, MessageCircle, Smartphone } from "lucide-react";
 import { PixPayment } from "@/components/pix-payment";
 import { BilheteTermico } from "@/components/bilhete-termico";
-import { EMPRESA, expirarPedidos, passagensDoPedido, pedidoPorCodigo } from "@/lib/store";
+import { passagensDoPedido, pedidoPorCodigo } from "@/lib/data/pedidos";
+import { getConfig } from "@/lib/data/utils";
 import { money } from "@/lib/format";
 
 export const metadata = { title: "Seu pedido" };
 
 export default async function PedidoPage({ params }: PageProps<"/pedido/[codigo]">) {
   const { codigo } = await params;
-  expirarPedidos();
-  const pedido = pedidoPorCodigo(codigo);
+  const pedido = await pedidoPorCodigo(codigo);
   if (!pedido) notFound();
-  const passagens = passagensDoPedido(pedido.id);
+  const passagens = await passagensDoPedido(pedido.id);
   const pg = pedido.pagamentos[0];
+  const config = await getConfig();
+  const EMPRESA = config.empresa;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">

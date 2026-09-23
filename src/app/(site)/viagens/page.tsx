@@ -2,7 +2,10 @@ import Link from "next/link";
 import { ArrowRight, Clock, MapPin, Ship } from "lucide-react";
 import { SearchForm } from "@/components/site/search-form";
 import { Empty } from "@/components/ui";
-import { buscarViagens, cidade, cidadesAtendidas } from "@/lib/store";
+import { buscarViagens } from "@/lib/data/viagens";
+import { cidade as getCidade } from "@/lib/data/catalogo";
+import { cidadesAtendidas } from "@/lib/data/utils";
+import { festivalDaViagem } from "@/lib/data/festivais";
 import { dateShort, duration, localDayKey, longDay, money, time, weekday } from "@/lib/format";
 
 export const metadata = { title: "Passagens" };
@@ -10,17 +13,28 @@ export const metadata = { title: "Passagens" };
 export default async function Viagens({ searchParams }: PageProps<"/viagens">) {
   const sp = await searchParams;
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
-  const cidades = cidadesAtendidas();
+  const cidades = await cidadesAtendidas();
   const valida = (id?: string) => (id && cidades.some((c) => c.id === id) ? id : undefined);
-  const origem = valida(str("origem")) ?? "manaus";
-  const destino = valida(str("destino")) ?? "santarem";
+  const origem = valida(str("origem"));
+  const destino = valida(str("destino"));
   const data = str("data") && /^\d{4}-\d{2}-\d{2}$/.test(str("data")!) ? str("data") : undefined;
 
-  const todos = buscarViagens(origem, destino);
-  const resultados = data ? todos.filter((r) => localDayKey(r.saida) === data) : todos.slice(0, 12);
-  const dias = [...new Map(todos.map((r) => [localDayKey(r.saida), r])).values()].slice(0, 10);
-  const o = cidade(origem);
-  const d = cidade(destino);
+  if (!origem || !destino) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <div className="card mb-6 p-5">
+          <SearchForm cidades={cidades} origem={origem} destino={destino} data={data} hoje={localDayKey(new Date())} compact />
+        </div>
+        <Empty>Escolha as cidades de origem e destino para buscar viagens.</Empty>
+      </div>
+    );
+  }
+
+  const todos = await buscarViagens(origem, destino);
+  const resultados = data ? todos.filter((r) => localDayKey(r.origemHorario) === data) : todos.slice(0, 12);
+  const dias = [...new Map(todos.map((r) => [localDayKey(r.origemHorario), r])).values()].slice(0, 10);
+  const o = (await getCidade(origem))!;
+  const d = (await getCidade(destino))!;
   const qs = (extra: Record<string, string>) => new URLSearchParams({ origem, destino, ...extra }).toString();
 
   return (
@@ -61,19 +75,20 @@ export default async function Viagens({ searchParams }: PageProps<"/viagens">) {
             )}
           </Empty>
         )}
-        {resultados.map((r) => {
-          const esgotado = r.livres === 0;
+        {await Promise.all(resultados.map(async (r) => {
+          const esgotado = r.lugaresLivres === 0;
+          const festival = await festivalDaViagem(r.viagem.id);
           return (
             <div key={r.viagem.id} className="card flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
               <div className="flex flex-1 items-center gap-4 sm:gap-6">
                 <div className="text-center">
-                  <p className="text-xs font-semibold text-slate-500">{weekday(r.saida)} {dateShort(r.saida)}</p>
-                  <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{time(r.saida)}</p>
+                  <p className="text-xs font-semibold text-slate-500">{weekday(r.origemHorario)} {dateShort(r.origemHorario)}</p>
+                  <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{time(r.origemHorario)}</p>
                   <p className="text-xs text-slate-500">{o.nome}</p>
                 </div>
                 <div className="flex flex-1 flex-col items-center px-2">
                   <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
-                    <Clock size={12} /> {duration(r.duracaoMin)}
+                    <Clock size={12} /> {duration(r.duracaoMinutos)}
                   </span>
                   <div className="relative my-1.5 h-0.5 w-full bg-gradient-to-r from-rio-300 to-rio-600">
                     <Ship size={16} className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white text-rio-600" />
@@ -81,34 +96,37 @@ export default async function Viagens({ searchParams }: PageProps<"/viagens">) {
                   <span className="text-xs text-slate-400">{r.destinoOrdem - r.origemOrdem - 1 > 0 ? `${r.destinoOrdem - r.origemOrdem - 1} parada(s)` : "direto"}</span>
                 </div>
                 <div className="text-center">
-                  <p className="text-xs font-semibold text-slate-500">{weekday(r.chegada)} {dateShort(r.chegada)}</p>
-                  <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{time(r.chegada)}</p>
+                  <p className="text-xs font-semibold text-slate-500">{weekday(r.destinoHorario)} {dateShort(r.destinoHorario)}</p>
+                  <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{time(r.destinoHorario)}</p>
                   <p className="text-xs text-slate-500">{d.nome}</p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-slate-100 pt-4 text-sm text-slate-600 sm:w-44 sm:flex-col sm:items-start sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6">
-                <span className="font-semibold text-slate-800">{r.embarcacao}</span>
-                <span className="flex items-center gap-1 text-xs"><MapPin size={12} /> {r.portoEmbarque}</span>
-                <span className={`text-xs font-semibold ${r.livres < 15 ? "text-red-600" : "text-emerald-600"}`}>
-                  {esgotado ? "Esgotado" : `${r.livres} poltronas livres`}
+                <span className="font-semibold text-slate-800">{r.linhaNome}</span>
+                {festival?.publicado && (
+                  <Link href={`/festivais/${festival.slug}`} className="rounded-full bg-rubro-50 px-2 py-0.5 text-xs font-semibold text-rubro-700">{festival.nome}</Link>
+                )}
+                <span className="flex items-center gap-1 text-xs"><MapPin size={12} /> Porto Principal</span>
+                <span className={`text-xs font-semibold ${r.lugaresLivres < 15 ? "text-red-600" : "text-emerald-600"}`}>
+                  {esgotado ? "Esgotado" : `${r.lugaresLivres} lugares livres`}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4 sm:w-48 sm:flex-col sm:items-end">
                 <div className="sm:text-right">
-                  <p className="text-2xl font-extrabold text-rio-800 tabular-nums">{money(r.valor)}</p>
-                  {r.taxa > 0 && <p className="text-xs text-slate-500">+ {money(r.taxa)} taxa de embarque</p>}
+                  <p className="text-2xl font-extrabold text-rio-800 tabular-nums">{money(r.tarifaBase)}</p>
+                  {r.taxaEmbarque > 0 && <p className="text-xs text-slate-500">+ {money(r.taxaEmbarque)} taxa de embarque</p>}
                 </div>
                 {esgotado ? (
                   <span className="btn-ghost pointer-events-none opacity-60">Esgotado</span>
                 ) : (
                   <Link href={`/viagens/${r.viagem.id}?o=${r.origemOrdem}&d=${r.destinoOrdem}`} className="btn-sol">
-                    Escolher poltrona <ArrowRight size={16} />
+                    Comprar <ArrowRight size={16} />
                   </Link>
                 )}
               </div>
             </div>
           );
-        })}
+        }))}
       </div>
     </div>
   );

@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
+import { ActionForm } from "@/components/admin/action-form";
 import { Badge, OccupancyBar, PageHeader } from "@/components/ui";
-import { db, embarcacao, linha, ocupacaoViagem } from "@/lib/store";
+import { gerarViagensAction } from "@/lib/admin-actions";
+import { operadorAtual } from "@/lib/sessao";
+import { db, embarcacao, linha, ocupacaoViagem, viagensAdmin } from "@/lib/store";
 import { dateShort, money, time, weekday } from "@/lib/format";
 
 export const metadata = { title: "Viagens" };
@@ -9,12 +13,9 @@ export default async function Viagens({ searchParams }: PageProps<"/admin/viagen
   const sp = await searchParams;
   const aba = sp.aba === "anteriores" ? "anteriores" : "proximas";
   const linhaId = typeof sp.linha === "string" ? sp.linha : "";
-  const agora = new Date().getTime();
-  const lista = db()
-    .viagens.filter((v) => !linhaId || v.linhaId === linhaId)
-    .filter((v) => (aba === "proximas" ? v.status !== "CONCLUIDA" : v.status === "CONCLUIDA"))
-    .filter((v) => aba === "anteriores" || new Date(v.partida).getTime() - agora < 30 * 86_400_000);
-  if (aba === "anteriores") lista.reverse();
+  const lista = viagensAdmin({ aba, linhaId: linhaId || undefined });
+  const op = await operadorAtual();
+  const gestor = op.papel === "ADMIN" || op.papel === "GERENTE";
 
   const tab = (a: string, l: string) => (
     <Link href={`/admin/viagens?aba=${a}${linhaId ? `&linha=${linhaId}` : ""}`} className={`rounded-lg px-4 py-2 text-sm font-semibold ${aba === a ? "bg-white text-rio-800 shadow" : "text-slate-500 hover:text-slate-800"}`}>
@@ -26,7 +27,17 @@ export default async function Viagens({ searchParams }: PageProps<"/admin/viagen
     <>
       <PageHeader
         title="Viagens"
-        subtitle="Geradas automaticamente a partir da programação semanal de cada linha"
+        subtitle="Geradas a partir da programação semanal de cada linha, mais as viagens avulsas"
+        actions={
+          gestor && (
+            <>
+              <ActionForm action={gerarViagensAction} submit="Gerar viagens (60 dias)" botaoClassName="btn-ghost" className="[&>div]:mt-0">
+                <input type="hidden" name="dias" value="60" />
+              </ActionForm>
+              <Link href="/admin/viagens/nova" className="btn-primary"><Plus size={16} /> Viagem avulsa</Link>
+            </>
+          )
+        }
       />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-xl bg-slate-200/60 p-1">
@@ -57,7 +68,11 @@ export default async function Viagens({ searchParams }: PageProps<"/admin/viagen
                   <td className="whitespace-nowrap"><span>{weekday(v.partida)}</span> {dateShort(v.partida)} · <b>{time(v.partida)}</b></td>
                   <td className="whitespace-nowrap">{linha(v.linhaId).nome}</td>
                   <td className="whitespace-nowrap">{embarcacao(v.embarcacaoId).nome}</td>
-                  <td><Badge status={v.status} /></td>
+                  <td className="whitespace-nowrap">
+                    <Badge status={v.status} />
+                    {!v.vendasAbertas && v.status !== "CONCLUIDA" && v.status !== "CANCELADA" && <span className="ml-1 text-xs text-slate-500">vendas fechadas</span>}
+                    {v.avulsa && <span className="ml-1 text-xs text-sol-600">avulsa</span>}
+                  </td>
                   <td><OccupancyBar pct={oc.pct} /></td>
                   <td className="text-right font-semibold tabular-nums">{money(receita)}</td>
                 </tr>

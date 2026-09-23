@@ -6,11 +6,15 @@ import { Badge, OccupancyBar, PageHeader, Stat } from "@/components/ui";
 import { db, expirarPedidos, linha, ocupacaoViagem, passagensDoPedido, pedidosPagos } from "@/lib/store";
 import { dateShort, dateTime, label, localDayKey, money, time, weekday } from "@/lib/format";
 import { periodoMes } from "@/lib/periodo";
+import { usuarioAtual } from "@/lib/auth";
+import { OnboardingModal } from "@/components/admin/onboarding-modal";
+import { OnboardingChecklist } from "@/components/admin/onboarding-checklist";
 
 export const metadata = { title: "Painel" };
 
 export default async function Painel({ searchParams }: PageProps<"/admin">) {
-  const { mes } = await searchParams;
+  const { mes, bemvindo } = await searchParams;
+  const user = await usuarioAtual();
   expirarPedidos();
   const per = periodoMes(mes);
   const pedidos = pedidosPagos(per.inicio, per.fim);
@@ -39,6 +43,24 @@ export default async function Painel({ searchParams }: PageProps<"/admin">) {
         subtitle="Visão geral das vendas e da operação"
         actions={<MonthNav base="/admin" {...per} />}
       />
+
+      {user && (
+        <OnboardingModal
+          nome={user.nome}
+          papel={user.papel}
+          abertoInicialmente={bemvindo === "1" || !user.onboardingConcluido}
+        />
+      )}
+
+      {user && !user.onboardingConcluido && (
+        <div className="mb-6">
+          <OnboardingChecklist
+            papel={user.papel}
+            passoSalvo={user.onboardingPasso}
+            concluido={user.onboardingConcluido}
+          />
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Total vendido" value={money(total)} hint={`${pedidos.length} pedidos pagos`} icon={<Banknote size={18} />} />

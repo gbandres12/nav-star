@@ -4,6 +4,7 @@ import { Badge, Empty, PageHeader } from "@/components/ui";
 import { db, expirarPedidos, passagensDoPedido, viagem, paradaInfo } from "@/lib/store";
 import { dateTime, label, money, onlyDigits } from "@/lib/format";
 import type { CanalVenda, StatusPedido } from "@/lib/types";
+import { garantirAcesso } from "@/lib/sessao";
 
 export const metadata = { title: "Pedidos" };
 
@@ -11,6 +12,7 @@ const CANAIS: CanalVenda[] = ["SITE", "BALCAO", "AGENCIA", "WHATSAPP"];
 const STATUS: StatusPedido[] = ["PAGO", "AGUARDANDO_PAGAMENTO", "EXPIRADO", "CANCELADO", "REEMBOLSADO"];
 
 export default async function Pedidos({ searchParams }: PageProps<"/admin/pedidos">) {
+  await garantirAcesso("/admin/pedidos");
   const sp = await searchParams;
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
   const q = s("q").trim().toLowerCase();

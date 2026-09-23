@@ -3,25 +3,29 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { BookingFlow } from "@/components/booking-flow";
 import { TripSummary } from "@/components/trip-summary";
-import { assentosOcupados, embarcacao, horarioParada, linha, paradaInfo, viagem } from "@/lib/store";
+import { viagem, assentosOcupados } from "@/lib/data/viagens";
+import { embarcacao as getEmbarcacao, linha as getLinha } from "@/lib/data/catalogo";
+import { tarifaViagem, acrescimosEmbarcacao, livresSemAcrescimo, lugaresLivres, getConfig, horarioParada, mapaComodos, paradaInfo } from "@/lib/data/utils";
 
-export const metadata = { title: "Escolha sua poltrona" };
+export const metadata = { title: "Comprar passagem" };
 
 export default async function EscolherPoltrona({ params, searchParams }: PageProps<"/viagens/[id]">) {
   const { id } = await params;
   const sp = await searchParams;
-  const v = viagem(id);
+  const v = await viagem(id);
   if (!v) notFound();
-  const l = linha(v.linhaId);
+  const l = await getLinha(v.linhaId);
+  if (!l) notFound();
   const o = Number(sp.o ?? 0);
   const d = Number(sp.d ?? l.paradas.length - 1);
   if (!(Number.isInteger(o) && Number.isInteger(d) && o >= 0 && d < l.paradas.length && o < d)) notFound();
 
-  const saida = horarioParada(v, o);
+  const saida = await horarioParada(v, o);
+  const chegada = await horarioParada(v, d);
   const encerrada = saida <= new Date() || v.status === "CANCELADA" || !v.vendasAbertas;
-  const origem = paradaInfo(l.id, o);
-  const destino = paradaInfo(l.id, d);
-  const e = embarcacao(v.embarcacaoId);
+  const origem = await paradaInfo(l.id, o);
+  const destino = await paradaInfo(l.id, d);
+  const e = (await getEmbarcacao(v.embarcacaoId))!;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -38,13 +42,19 @@ export default async function EscolherPoltrona({ params, searchParams }: PagePro
           viagemId={v.id}
           origemOrdem={o}
           destinoOrdem={d}
-          valor={l.tarifas[o][d]}
+          valor={await tarifaViagem(v, o, d)}
           taxa={origem.porto.taxaEmbarque}
           assentos={e.assentos}
           colunas={e.colunasMapa}
-          ocupados={[...assentosOcupados(v.id, o, d)]}
+          ocupados={[...(await assentosOcupados(v.id, o, d))]}
           canal="SITE"
-          resumo={<TripSummary origem={origem} destino={destino} saida={saida} chegada={horarioParada(v, d)} embarcacao={e.nome} />}
+          descontos={(await getConfig()).valores.descontos}
+          acrescimos={await acrescimosEmbarcacao(e.id)}
+          livresSemAcrescimo={await livresSemAcrescimo(v.id, o, d)}
+          livres={await lugaresLivres(v, o, d)}
+          assentoLivre={!!e.assentoLivre}
+          comodos={await mapaComodos(e.id)}
+          resumo={<TripSummary origem={origem} destino={destino} saida={saida} chegada={chegada} embarcacao={e.nome} />}
         />
       )}
     </div>

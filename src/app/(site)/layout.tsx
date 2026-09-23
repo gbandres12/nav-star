@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { MessageCircle, PackageSearch, Ticket } from "lucide-react";
+import { MessageCircle, PackageSearch, PartyPopper, Ticket } from "lucide-react";
 import { Logo } from "@/components/ui";
-import { EMPRESA } from "@/lib/store";
+import { EMPRESA, festivaisNoSite } from "@/lib/store";
 
 export default function SiteLayout({ children }: LayoutProps<"/">) {
   return (
@@ -15,6 +15,11 @@ export default function SiteLayout({ children }: LayoutProps<"/">) {
             <Link href="/viagens" className="hidden rounded-lg px-3 py-2 hover:bg-slate-100 sm:flex sm:items-center sm:gap-2">
               <Ticket size={16} /> Passagens
             </Link>
+            {festivaisNoSite().length > 0 && (
+              <Link href="/festivais" className="flex items-center gap-2 rounded-lg px-3 py-2 font-semibold text-rubro-600 hover:bg-rubro-50">
+                <PartyPopper size={16} /> <span className="hidden sm:inline">Festivais</span>
+              </Link>
+            )}
             <Link href="/rastreio" className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-slate-100">
               <PackageSearch size={16} /> <span className="hidden sm:inline">Rastrear encomenda</span>
             </Link>

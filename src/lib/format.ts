@@ -84,6 +84,21 @@ export const LABEL: Record<string, string> = {
   INATIVA: "Inativa",
   REMETENTE: "Remetente",
   DESTINATARIO: "Destinatário",
+  FATURADO: "Faturado (convênio)",
+  APROVADO: "Aprovado",
+  PENDENTE: "Pendente",
+  ESTORNADO: "Estornado",
+  RECUSADO: "Recusado",
+  COMANDANTE: "Comandante",
+  IMEDIATO: "Imediato",
+  MAQUINISTA: "Maquinista",
+  MARINHEIRO: "Marinheiro",
+  TAIFEIRO: "Taifeiro",
+  COMISSARIO: "Comissário(a)",
+  SANGRIA: "Sangria",
+  SUPRIMENTO: "Suprimento",
+  NAVEGANDO: "Navegando",
+  ATRACADA: "Atracada",
 };
 
 export const label = (k: string) => LABEL[k] ?? k;

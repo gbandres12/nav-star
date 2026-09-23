@@ -1,7 +1,9 @@
 import { BarList } from "@/components/admin/charts";
 import { MonthNav } from "@/components/admin/month-nav";
 import { PageHeader, Stat } from "@/components/ui";
-import { db, linha, passagensDoPedido, pedidosPagos, viagem } from "@/lib/store";
+import Link from "next/link";
+import { config, db, linha, passagensDoPedido, pedidosPagos, viagem } from "@/lib/store";
+import { garantirAcesso } from "@/lib/sessao";
 import { label, money } from "@/lib/format";
 import { periodoMes } from "@/lib/periodo";
 
@@ -14,6 +16,7 @@ function agrupar<T>(itens: T[], chave: (t: T) => string, valor: (t: T) => number
 }
 
 export default async function Financeiro({ searchParams }: PageProps<"/admin/financeiro">) {
+  await garantirAcesso("/admin/financeiro");
   const { mes } = await searchParams;
   const per = periodoMes(mes);
   const pedidos = pedidosPagos(per.inicio, per.fim);
@@ -23,6 +26,12 @@ export default async function Financeiro({ searchParams }: PageProps<"/admin/fin
   const encomendas = db().encomendas.filter((e) => new Date(e.createdAt) >= per.inicio && new Date(e.createdAt) < per.fim);
   const fretesRecebidos = encomendas.filter((e) => e.fretePago).reduce((s, e) => s + e.frete, 0);
   const fretesAReceber = encomendas.filter((e) => !e.fretePago).reduce((s, e) => s + e.frete, 0);
+
+  const noMes = (iso: string) => new Date(iso) >= per.inicio && new Date(iso) < per.fim;
+  const cancs = db().cancelamentos.filter((c) => noMes(c.createdAt));
+  const faturar = pedidos.filter((p) => p.pagamentos[0].metodo === "FATURADO").reduce((s, p) => s + p.total, 0);
+  const sistema = (pedidos.reduce((s, p) => s + p.subtotal, 0) * config().valores.taxaSistemaPct) / 100;
+  const caixas = db().caixas.filter((c) => c.fechadoEm && noMes(c.fechadoEm));
 
   const porCanal = agrupar(pedidos, (p) => label(p.canal), (p) => p.total);
   const porMetodo = agrupar(pedidos, (p) => label(p.pagamentos[0].metodo), (p) => p.total);
@@ -53,6 +62,17 @@ export default async function Financeiro({ searchParams }: PageProps<"/admin/fin
         <Stat label="Líquido da empresa" value={money(total - taxas - comissao)} hint="Bruto − taxas de embarque − comissões" />
         <Stat label="Repasse de taxas de embarque" value={money(taxas)} hint="Devido aos portos" />
         <Stat label="Fretes de encomendas" value={money(fretesRecebidos)} hint={`${money(fretesAReceber)} a receber na retirada`} />
+      </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat label="Reembolsos" value={money(cancs.reduce((s, c) => s + c.reembolso, 0))} hint={`${cancs.length} cancelamentos · multas ${money(cancs.reduce((s, c) => s + c.multa, 0))}`} />
+        <Stat label="Convênios a faturar" value={money(faturar)} hint="Passagens emitidas sem pagamento no ato" />
+        <Stat label="Porcentagem do sistema" value={money(sistema)} hint={`${config().valores.taxaSistemaPct}% sobre as passagens`} />
+        <Stat label="Caixas fechados" value={caixas.length} hint="Detalhes no relatório de caixas" />
+      </div>
+      <div className="no-print mt-4 flex flex-wrap gap-2 text-sm">
+        {[["geral", "Relatório geral"], ["fiscal", "Fiscal"], ["por-usuario", "Por usuário"], ["caixas", "Caixas fechados"], ["cancelamentos", "Cancelamentos"], ["por-convenio", "Convênios"]].map(([k, l]) => (
+          <Link key={k} href={`/admin/relatorios/${k}?de=${per.mes}-01&ate=${per.mes}-${String(per.dias).padStart(2, "0")}`} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-600 hover:border-rio-400 hover:text-rio-700">{l} →</Link>
+        ))}
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">

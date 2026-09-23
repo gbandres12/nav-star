@@ -9,10 +9,20 @@ type Props = {
   selecionados?: string[];
   onToggle?: (id: string) => void;
   labels?: Record<string, string>; // texto extra no tooltip (ex.: nome do passageiro)
+  comodos?: Record<string, { nome: string; cor: string }>; // cômodo de cada poltrona (faixa colorida + legenda)
 };
 
+// Faixa inferior que identifica o cômodo (classes fixas para o Tailwind encontrar)
+const FAIXA: Record<string, string> = {
+  rio: "border-b-[3px] border-b-rio-500",
+  sol: "border-b-[3px] border-b-sol-500",
+  rubro: "border-b-[3px] border-b-rubro-500",
+  emerald: "border-b-[3px] border-b-emerald-500",
+};
+const PONTO: Record<string, string> = { rio: "bg-rio-500", sol: "bg-sol-500", rubro: "bg-rubro-500", emerald: "bg-emerald-500" };
+
 /** Mapa da lancha na horizontal: proa à direita, fileiras da popa (esq.) para a proa */
-export function SeatMap({ assentos, colunas, ocupados, selecionados = [], onToggle, labels }: Props) {
+export function SeatMap({ assentos, colunas, ocupados, selecionados = [], onToggle, labels, comodos }: Props) {
   const occ = ocupados instanceof Set ? ocupados : new Set(ocupados);
   const fileiras = Math.max(...assentos.map((a) => a.fileira));
   const byPos = new Map(assentos.map((a) => [`${a.fileira}-${a.coluna}`, a]));
@@ -51,7 +61,9 @@ export function SeatMap({ assentos, colunas, ocupados, selecionados = [], onTogg
                         : a.tipo === "ESPECIAL"
                           ? "bg-rio-100 text-rio-700 border border-rio-300 hover:bg-rio-200"
                           : "bg-white text-slate-500 border border-slate-300 hover:border-rio-500 hover:text-rio-700";
-                    const title = `Poltrona ${a.codigo}${a.tipo === "POLTRONA_JANELA" ? " · janela" : a.tipo === "ESPECIAL" ? " · preferencial" : ""}${ocupado ? " · ocupada" : ""}${labels?.[a.id] ? ` · ${labels[a.id]}` : ""}`;
+                    const cm = comodos?.[a.id];
+                    const faixa = cm && !ocupado && !sel ? (FAIXA[cm.cor] ?? "") : "";
+                    const title = `Poltrona ${a.codigo}${cm ? ` · ${cm.nome}` : ""}${a.tipo === "POLTRONA_JANELA" ? " · janela" : a.tipo === "ESPECIAL" ? " · preferencial" : ""}${ocupado ? " · ocupada" : ""}${labels?.[a.id] ? ` · ${labels[a.id]}` : ""}`;
                     return (
                       <button
                         key={c}
@@ -61,7 +73,7 @@ export function SeatMap({ assentos, colunas, ocupados, selecionados = [], onTogg
                         aria-pressed={sel}
                         disabled={ocupado || !onToggle}
                         onClick={() => onToggle?.(a.id)}
-                        className={`${base} ${cls} ${!onToggle && !ocupado ? "cursor-default" : ""}`}
+                        className={`${base} ${cls} ${faixa} ${!onToggle && !ocupado ? "cursor-default" : ""}`}
                       >
                         {a.codigo.replace(/\D/g, "")}
                       </button>
@@ -79,6 +91,10 @@ export function SeatMap({ assentos, colunas, ocupados, selecionados = [], onTogg
         <Legend cls="bg-rubro-500">Selecionada</Legend>
         <Legend cls="bg-slate-300">Ocupada</Legend>
         <Legend cls="bg-rio-100 border border-rio-300">Preferencial (idoso/PCD)</Legend>
+        {comodos &&
+          [...new Map(Object.values(comodos).filter((c) => PONTO[c.cor]).map((c) => [c.nome, c])).values()].map((c) => (
+            <Legend key={c.nome} cls={PONTO[c.cor]}>{c.nome}</Legend>
+          ))}
       </div>
     </div>
   );

@@ -3,10 +3,12 @@ import { ShoppingCart } from "lucide-react";
 import { Empty, PageHeader } from "@/components/ui";
 import { buscarViagens, cidadesAtendidas } from "@/lib/store";
 import { dateShort, duration, localDayKey, money, time, weekday } from "@/lib/format";
+import { garantirAcesso } from "@/lib/sessao";
 
 export const metadata = { title: "Vender passagens" };
 
 export default async function Vender({ searchParams }: PageProps<"/admin/vender">) {
+  await garantirAcesso("/admin/vender");
   const sp = await searchParams;
   const s = (k: string) => (typeof sp[k] === "string" && sp[k] ? (sp[k] as string) : undefined);
   const cidades = cidadesAtendidas();

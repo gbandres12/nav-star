@@ -1,16 +1,22 @@
 import Link from "next/link";
 import { ArrowRight, Clock, PackageCheck, QrCode, ShieldCheck, Smartphone, Ticket } from "lucide-react";
+import { FestivalCard } from "@/components/site/festival-card";
 import { SearchForm } from "@/components/site/search-form";
-import { cidadesAtendidas, db, horarioParada, linha, lugaresLivres, paradaInfo, proximasSaidas } from "@/lib/store";
+import { cidade as getCidade } from "@/lib/data/catalogo";
+import { cidadesAtendidas, horarioParada, lugaresLivres, opcoesFestival, paradaInfo, proximasSaidas, tarifaViagem } from "@/lib/data/utils";
+import { festivaisNoSite } from "@/lib/data/festivais";
+import { linhas } from "@/lib/data/catalogo";
 import { duration, localDayKey, longDay, money, time } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const cidades = cidadesAtendidas();
+export default async function Home() {
+  const cidades = await cidadesAtendidas();
   const hoje = localDayKey(new Date());
-  const principal = db().linhas[0];
-  const saidas = proximasSaidas(4);
+  const allLinhas = await linhas();
+  const principal = allLinhas[0];
+  const saidas = await proximasSaidas(4);
+  const festivais = (await festivaisNoSite()).slice(0, 2);
 
   return (
     <>
@@ -37,6 +43,28 @@ export default function Home() {
         </div>
       </div>
 
+      {festivais.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pt-14">
+          <div className="mb-6 flex items-end justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Festivais</h2>
+              <p className="text-sm text-slate-500">Viagens especiais para as festas da região</p>
+            </div>
+            <Link href="/festivais" className="hidden items-center gap-1 text-sm font-semibold text-rio-700 hover:underline sm:flex">
+              Todos <ArrowRight size={16} />
+            </Link>
+          </div>
+          <div className="grid gap-5 md:grid-cols-2">
+            {await Promise.all(festivais.map(async (f) => {
+              const { ida, volta } = await opcoesFestival(f);
+              const menor = Math.min(...[...ida, ...volta].map((o) => o.valor));
+              const fCidade = await getCidade(f.cidadeId);
+              return <FestivalCard key={f.id} f={f} cidade={fCidade?.nome || ""} aPartirDe={Number.isFinite(menor) ? money(menor) : undefined} />;
+            }))}
+          </div>
+        </section>
+      )}
+
       <section className="mx-auto max-w-6xl px-4 py-14">
         <div className="mb-6 flex items-end justify-between">
           <div>
@@ -48,12 +76,14 @@ export default function Home() {
           </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {saidas.map((v) => {
-            const l = linha(v.linhaId);
+          {await Promise.all(saidas.map(async (v) => {
+            const l = allLinhas.find(x => x.id === v.linhaId)!;
             const ult = l.paradas.length - 1;
-            const o = paradaInfo(l.id, 0);
-            const d = paradaInfo(l.id, ult);
-            const livres = lugaresLivres(v, 0, ult);
+            const o = await paradaInfo(l.id, 0);
+            const d = await paradaInfo(l.id, ult);
+            const livres = await lugaresLivres(v, 0, ult);
+            const horario = await horarioParada(v, ult);
+            const tarifa = await tarifaViagem(v, 0, ult);
             return (
               <Link
                 key={v.id}
@@ -65,12 +95,12 @@ export default function Home() {
                   {o.cidade.nome} <span className="text-slate-400">→</span> {d.cidade.nome}
                 </p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
-                  <Clock size={14} /> {time(v.partida)} · chega {time(horarioParada(v, ult))}
+                  <Clock size={14} /> {time(v.partida)} · chega {time(horario)}
                 </p>
                 <div className="mt-4 flex items-end justify-between">
                   <div>
                     <p className="text-xs text-slate-500">viagem completa</p>
-                    <p className="text-xl font-extrabold text-rio-800">{money(l.tarifas[0][ult])}</p>
+                    <p className="text-xl font-extrabold text-rio-800">{money(tarifa)}</p>
                   </div>
                   <span className={`rounded-full px-2 py-1 text-xs font-semibold ${livres < 15 ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
                     {livres} lugares
@@ -78,7 +108,7 @@ export default function Home() {
                 </div>
               </Link>
             );
-          })}
+          }))}
         </div>
       </section>
 
@@ -89,8 +119,8 @@ export default function Home() {
           <div className="mt-8 overflow-x-auto pb-2">
             <ol className="relative flex min-w-[720px] justify-between">
               <div className="absolute top-[18px] right-[4%] left-[4%] h-1 rounded-full bg-gradient-to-r from-rio-300 via-rio-500 to-rio-700" />
-              {principal.paradas.map((p, i) => {
-                const info = paradaInfo(principal.id, p.ordem);
+              {await Promise.all(principal.paradas.map(async (p, i) => {
+                const info = await paradaInfo(principal.id, p.ordem);
                 return (
                   <li key={p.ordem} className="relative flex w-1/6 flex-col items-center text-center">
                     <span className={`z-10 grid h-10 w-10 place-items-center rounded-full border-4 border-white text-sm font-bold shadow ${i === 0 || i === principal.paradas.length - 1 ? "bg-rubro-500 text-white" : "bg-rio-600 text-white"}`}>
@@ -106,7 +136,7 @@ export default function Home() {
                     )}
                   </li>
                 );
-              })}
+              }))}
             </ol>
           </div>
         </div>

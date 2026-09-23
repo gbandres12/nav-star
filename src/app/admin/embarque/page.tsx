@@ -1,10 +1,12 @@
 import { EmbarqueForm } from "@/components/admin/embarque-form";
 import { PageHeader } from "@/components/ui";
 import { db } from "@/lib/store";
+import { garantirAcesso } from "@/lib/sessao";
 
 export const metadata = { title: "Embarque" };
 
-export default function Embarque() {
+export default async function Embarque() {
+  await garantirAcesso("/admin/embarque");
   // Sugere um bilhete válido da próxima viagem para testar
   const agora = new Date();
   const prox = db().viagens.find((v) => new Date(v.partida) > agora);
