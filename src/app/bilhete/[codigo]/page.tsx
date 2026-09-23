@@ -1,0 +1,46 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
+import { BilheteTermico } from "@/components/bilhete-termico";
+import { AutoPrint } from "@/components/auto-print";
+import { PrintButton } from "@/components/print-button";
+import { passagensDoPedido, pedidoPorCodigo } from "@/lib/store";
+
+export const metadata = { title: "Bilhete", robots: { index: false } };
+
+/** Página só com os bilhetes, pronta para a impressora térmica ou "Salvar como PDF" */
+export default async function BilhetePage({ params, searchParams }: PageProps<"/bilhete/[codigo]">) {
+  const { codigo } = await params;
+  const sp = await searchParams;
+  const pedido = pedidoPorCodigo(codigo);
+  if (!pedido) notFound();
+  const passagens = passagensDoPedido(pedido.id).filter((p) => p.status === "EMITIDA" || p.status === "EMBARCADA");
+  const voltar = typeof sp.voltar === "string" && sp.voltar.startsWith("/") ? sp.voltar : `/pedido/${pedido.codigo}`;
+
+  return (
+    <div className="min-h-screen bg-slate-200 print:bg-white">
+      <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-300 bg-white px-4 py-3">
+        <Link href={voltar} className="flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-rio-700">
+          <ChevronLeft size={16} /> Voltar
+        </Link>
+        <p className="hidden text-sm text-slate-500 sm:block">
+          {passagens.length} bilhete(s) · papel 80 mm — na impressão escolha a impressora térmica ou “Salvar como PDF”
+        </p>
+        <PrintButton label="Imprimir" />
+      </div>
+
+      {pedido.status !== "PAGO" || passagens.length === 0 ? (
+        <p className="p-10 text-center text-slate-600">Os bilhetes ficam disponíveis após a confirmação do pagamento.</p>
+      ) : (
+        <div className="flex flex-col items-center gap-6 py-8 print:block print:py-0">
+          {passagens.map((p) => (
+            <div key={p.id} className="shadow-lg print:shadow-none">
+              <BilheteTermico passagem={p} pedido={pedido} />
+            </div>
+          ))}
+          {sp.imprimir === "1" && <AutoPrint />}
+        </div>
+      )}
+    </div>
+  );
+}

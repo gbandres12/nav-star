@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# planos e ferramentas de agentes (mantidos só localmente)
+/task-plan.md
+/backend-plan.md
+/.agents/
+/skills-lock.json
+/.claude/

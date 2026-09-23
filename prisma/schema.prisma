@@ -1,0 +1,504 @@
+// NavStar — modelo de dados da plataforma de gestão de lanchas
+// Banco: PostgreSQL. Todas as datas em UTC; exibição em America/Manaus.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Empresa e acesso
+// ─────────────────────────────────────────────────────────────
+
+model Empresa {
+  id                 String   @id @default(cuid())
+  razaoSocial        String
+  nomeFantasia       String
+  cnpj               String   @unique
+  inscricaoEstadual  String?
+  email              String
+  telefone           String
+  whatsapp           String?
+  logoUrl            String?
+  // Regras comerciais
+  minutosReservaSite Int      @default(30) // tempo p/ pagar antes de liberar o assento
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  embarcacoes Embarcacao[]
+  linhas      Linha[]
+  usuarios    Usuario[]
+  agencias    Agencia[]
+}
+
+enum PapelUsuario {
+  ADMIN // tudo
+  GERENTE // operação + financeiro
+  VENDEDOR // balcão / agência
+  CONFERENTE // embarque e encomendas
+}
+
+model Usuario {
+  id           String       @id @default(cuid())
+  empresaId    String
+  agenciaId    String?
+  nome         String
+  email        String       @unique
+  senhaHash    String
+  papel        PapelUsuario
+  ativo        Boolean      @default(true)
+  ultimoAcesso DateTime?
+  createdAt    DateTime     @default(now())
+
+  empresa            Empresa           @relation(fields: [empresaId], references: [id])
+  agencia            Agencia?          @relation(fields: [agenciaId], references: [id])
+  // Se vazio, acessa todas as linhas; se preenchido, só as listadas
+  linhasPermitidas   UsuarioLinha[]
+  pedidosVendidos    Pedido[]
+  caixas             CaixaSessao[]
+  eventosEncomenda   EncomendaEvento[]
+  embarquesValidados Passagem[]        @relation("ValidadoPor")
+}
+
+model UsuarioLinha {
+  usuarioId String
+  linhaId   String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  linha     Linha   @relation(fields: [linhaId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, linhaId])
+}
+
+model Agencia {
+  id                 String  @id @default(cuid())
+  empresaId          String
+  nome               String
+  cnpj               String?
+  cidadeId           String
+  comissaoPercentual Decimal @db.Decimal(5, 2)
+  ativa              Boolean @default(true)
+
+  empresa  Empresa   @relation(fields: [empresaId], references: [id])
+  cidade   Cidade    @relation(fields: [cidadeId], references: [id])
+  usuarios Usuario[]
+  pedidos  Pedido[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// Geografia
+// ─────────────────────────────────────────────────────────────
+
+model Cidade {
+  id         String  @id @default(cuid())
+  nome       String
+  uf         String  @db.Char(2)
+  sigla      String  @db.VarChar(3) // "MAO", "STM" — impressa no bilhete
+  codigoIbge String? @unique
+  timezone   String  @default("America/Manaus") // Santarém/PA = America/Santarem
+
+  portos            Porto[]
+  agencias          Agencia[]
+  encomendasOrigem  Encomenda[] @relation("EncomendaOrigem")
+  encomendasDestino Encomenda[] @relation("EncomendaDestino")
+
+  @@unique([nome, uf])
+}
+
+model Porto {
+  id           String  @id @default(cuid())
+  cidadeId     String
+  nome         String // ex.: "Balsa Amarela"
+  endereco     String?
+  taxaEmbarque Decimal @default(0) @db.Decimal(10, 2)
+  ativo        Boolean @default(true)
+
+  cidade  Cidade        @relation(fields: [cidadeId], references: [id])
+  paradas ParadaLinha[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// Frota
+// ─────────────────────────────────────────────────────────────
+
+enum StatusEmbarcacao {
+  ATIVA
+  MANUTENCAO
+  INATIVA
+}
+
+model Embarcacao {
+  id                    String           @id @default(cuid())
+  empresaId             String
+  nome                  String // "São Tomé Expresso"
+  tipo                  String           @default("LANCHA")
+  inscricaoCapitania    String? // nº de inscrição na Marinha
+  capacidadePassageiros Int
+  capacidadeCargaKg     Int?
+  status                StatusEmbarcacao @default(ATIVA)
+  fotoUrl               String?
+
+  empresa  Empresa        @relation(fields: [empresaId], references: [id])
+  assentos Assento[]
+  viagens  Viagem[]
+  horarios HorarioLinha[]
+}
+
+enum TipoAssento {
+  POLTRONA
+  POLTRONA_JANELA
+  ESPECIAL // reservado p/ idoso / PCD
+}
+
+model Assento {
+  id           String      @id @default(cuid())
+  embarcacaoId String
+  codigo       String // "12A"
+  fileira      Int
+  coluna       Int // posição no mapa (inclui corredor)
+  tipo         TipoAssento @default(POLTRONA)
+  ativo        Boolean     @default(true)
+
+  embarcacao Embarcacao        @relation(fields: [embarcacaoId], references: [id], onDelete: Cascade)
+  passagens  Passagem[]
+  ocupacoes  OcupacaoAssento[]
+
+  @@unique([embarcacaoId, codigo])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Rotas: Linha → Paradas (ordem) → Tarifas por trecho
+// ─────────────────────────────────────────────────────────────
+
+model Linha {
+  id        String  @id @default(cuid())
+  empresaId String
+  nome      String // "Manaus → Santarém"
+  ativa     Boolean @default(true)
+
+  empresa  Empresa        @relation(fields: [empresaId], references: [id])
+  paradas  ParadaLinha[]
+  tarifas  TarifaTrecho[]
+  horarios HorarioLinha[]
+  viagens  Viagem[]
+  usuarios UsuarioLinha[]
+}
+
+model ParadaLinha {
+  id                 String @id @default(cuid())
+  linhaId            String
+  portoId            String
+  ordem              Int // 0 = origem da linha
+  minutosDesdeOrigem Int // previsão de chegada/saída nesta parada
+
+  linha Linha @relation(fields: [linhaId], references: [id], onDelete: Cascade)
+  porto Porto @relation(fields: [portoId], references: [id])
+
+  tarifasOrigem  TarifaTrecho[] @relation("TarifaOrigem")
+  tarifasDestino TarifaTrecho[] @relation("TarifaDestino")
+
+  @@unique([linhaId, ordem])
+}
+
+// Preço por par origem → destino (Manaus→Parintins, Itacoatiara→Juruti…)
+model TarifaTrecho {
+  id               String   @id @default(cuid())
+  linhaId          String
+  origemParadaId   String
+  destinoParadaId  String
+  valor            Decimal  @db.Decimal(10, 2)
+  valorEncomendaKg Decimal? @db.Decimal(10, 2)
+
+  linha   Linha       @relation(fields: [linhaId], references: [id], onDelete: Cascade)
+  origem  ParadaLinha @relation("TarifaOrigem", fields: [origemParadaId], references: [id])
+  destino ParadaLinha @relation("TarifaDestino", fields: [destinoParadaId], references: [id])
+
+  @@unique([origemParadaId, destinoParadaId])
+}
+
+// Programação semanal: gera as viagens automaticamente
+model HorarioLinha {
+  id             String    @id @default(cuid())
+  linhaId        String
+  embarcacaoId   String
+  diaSemana      Int // 0 = domingo … 6 = sábado
+  horaSaida      String // "03:00"
+  ativo          Boolean   @default(true)
+  vigenciaInicio DateTime?
+  vigenciaFim    DateTime?
+
+  linha      Linha      @relation(fields: [linhaId], references: [id], onDelete: Cascade)
+  embarcacao Embarcacao @relation(fields: [embarcacaoId], references: [id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Viagens
+// ─────────────────────────────────────────────────────────────
+
+enum StatusViagem {
+  PROGRAMADA
+  EMBARQUE // portão aberto
+  EM_CURSO
+  CONCLUIDA
+  CANCELADA
+}
+
+model Viagem {
+  id            String       @id @default(cuid())
+  linhaId       String
+  embarcacaoId  String
+  partida       DateTime // saída da parada de ordem 0
+  status        StatusViagem @default(PROGRAMADA)
+  comandante    String?
+  vendasAbertas Boolean      @default(true)
+  observacao    String?
+  createdAt     DateTime     @default(now())
+
+  linha      Linha             @relation(fields: [linhaId], references: [id])
+  embarcacao Embarcacao        @relation(fields: [embarcacaoId], references: [id])
+  passagens  Passagem[]
+  ocupacoes  OcupacaoAssento[]
+  encomendas Encomenda[]
+
+  @@unique([linhaId, partida])
+  @@index([partida])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Vendas: Pedido → Passagens (+ Pagamentos)
+// ─────────────────────────────────────────────────────────────
+
+model Cliente {
+  id        String   @id @default(cuid())
+  nome      String
+  cpf       String?  @unique
+  email     String?  @unique
+  telefone  String
+  senhaHash String? // null = compra como convidado
+  createdAt DateTime @default(now())
+
+  pedidos Pedido[]
+}
+
+enum CanalVenda {
+  SITE
+  BALCAO
+  AGENCIA
+  WHATSAPP
+}
+
+enum StatusPedido {
+  AGUARDANDO_PAGAMENTO
+  PAGO
+  CANCELADO
+  EXPIRADO
+  REEMBOLSADO
+}
+
+model Pedido {
+  id              String       @id @default(cuid())
+  codigo          String       @unique // "ST-7K3P9A" — código público (link / consulta)
+  numero          String       @unique // "MAO-2026-0001" — impresso no bilhete
+  clienteId       String?
+  canal           CanalVenda
+  status          StatusPedido @default(AGUARDANDO_PAGAMENTO)
+  vendedorId      String?
+  agenciaId       String?
+  subtotal        Decimal      @db.Decimal(10, 2)
+  taxas           Decimal      @db.Decimal(10, 2)
+  desconto        Decimal      @default(0) @db.Decimal(10, 2)
+  total           Decimal      @db.Decimal(10, 2)
+  comissaoAgencia Decimal      @default(0) @db.Decimal(10, 2)
+  expiraEm        DateTime? // pedidos do site sem pagamento liberam o assento
+  createdAt       DateTime     @default(now())
+
+  cliente    Cliente?    @relation(fields: [clienteId], references: [id])
+  vendedor   Usuario?    @relation(fields: [vendedorId], references: [id])
+  agencia    Agencia?    @relation(fields: [agenciaId], references: [id])
+  passagens  Passagem[]
+  pagamentos Pagamento[]
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+enum TipoPassageiro {
+  INTEIRA
+  CRIANCA // até 11 anos: meia
+  COLO // até 2 anos: gratuito, sem assento
+  IDOSO // gratuidade/desconto legal
+  ESTUDANTE
+  PCD
+}
+
+enum StatusPassagem {
+  RESERVADA
+  EMITIDA
+  EMBARCADA
+  CANCELADA
+  NAO_COMPARECEU
+}
+
+model Passagem {
+  id            String         @id @default(cuid())
+  pedidoId      String
+  viagemId      String
+  assentoId     String? // null p/ criança de colo
+  origemOrdem   Int // ordem da parada de embarque
+  destinoOrdem  Int // ordem da parada de desembarque
+  // Passageiro
+  nome          String
+  documento     String // CPF ou RG
+  nascimento    DateTime?
+  telefone      String?
+  tipo          TipoPassageiro @default(INTEIRA)
+  // Valores
+  valor         Decimal        @db.Decimal(10, 2)
+  taxaEmbarque  Decimal        @db.Decimal(10, 2)
+  status        StatusPassagem @default(RESERVADA)
+  qrToken       String         @unique // conteúdo do QR Code do bilhete
+  // BP-e (Bilhete de Passagem eletrônico — SEFAZ)
+  bpeChave      String?        @unique
+  bpeProtocolo  String?
+  // Embarque
+  embarcadoEm   DateTime?
+  validadoPorId String?
+  createdAt     DateTime       @default(now())
+
+  pedido      Pedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  viagem      Viagem            @relation(fields: [viagemId], references: [id])
+  assento     Assento?          @relation(fields: [assentoId], references: [id])
+  validadoPor Usuario?          @relation("ValidadoPor", fields: [validadoPorId], references: [id])
+  ocupacoes   OcupacaoAssento[]
+
+  @@index([viagemId])
+  @@index([documento])
+}
+
+// Uma linha por (viagem, assento, segmento). Ex.: Manaus(0)→Parintins(2)
+// ocupa os segmentos 0 e 1. A chave única impede venda duplicada no banco,
+// e permite revender o mesmo assento de Parintins em diante.
+model OcupacaoAssento {
+  viagemId   String
+  assentoId  String
+  segmento   Int // segmento N = trecho entre parada N e N+1
+  passagemId String
+
+  viagem   Viagem   @relation(fields: [viagemId], references: [id], onDelete: Cascade)
+  assento  Assento  @relation(fields: [assentoId], references: [id])
+  passagem Passagem @relation(fields: [passagemId], references: [id], onDelete: Cascade)
+
+  @@id([viagemId, assentoId, segmento])
+}
+
+enum MetodoPagamento {
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  DINHEIRO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  APROVADO
+  RECUSADO
+  ESTORNADO
+}
+
+model Pagamento {
+  id           String          @id @default(cuid())
+  pedidoId     String
+  metodo       MetodoPagamento
+  status       StatusPagamento @default(PENDENTE)
+  valor        Decimal         @db.Decimal(10, 2)
+  parcelas     Int             @default(1)
+  gateway      String? // "mercadopago", "asaas"… (null = balcão)
+  gatewayId    String?         @unique
+  pixCopiaCola String?
+  pagoEm       DateTime?
+  caixaId      String?
+  createdAt    DateTime        @default(now())
+
+  pedido Pedido       @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  caixa  CaixaSessao? @relation(fields: [caixaId], references: [id])
+}
+
+// Abertura/fechamento de caixa do balcão
+model CaixaSessao {
+  id              String    @id @default(cuid())
+  usuarioId       String
+  abertoEm        DateTime  @default(now())
+  fechadoEm       DateTime?
+  valorAbertura   Decimal   @db.Decimal(10, 2)
+  valorFechamento Decimal?  @db.Decimal(10, 2)
+  observacao      String?
+
+  usuario    Usuario     @relation(fields: [usuarioId], references: [id])
+  pagamentos Pagamento[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// Encomendas
+// ─────────────────────────────────────────────────────────────
+
+enum StatusEncomenda {
+  RECEBIDA // deixada no porto de origem
+  EMBARCADA
+  EM_TRANSITO
+  DISPONIVEL_RETIRADA // chegou ao destino
+  ENTREGUE
+  DEVOLVIDA
+}
+
+enum PagadorFrete {
+  REMETENTE
+  DESTINATARIO
+}
+
+model Encomenda {
+  id               String          @id @default(cuid())
+  codigo           String          @unique // "EN-48213" — usado no rastreio
+  viagemId         String?
+  origemCidadeId   String
+  destinoCidadeId  String
+  // Remetente / destinatário
+  remetenteNome    String
+  remetenteDoc     String
+  remetenteTel     String
+  destinatarioNome String
+  destinatarioDoc  String?
+  destinatarioTel  String
+  // Carga
+  descricao        String
+  volumes          Int             @default(1)
+  pesoKg           Decimal         @db.Decimal(10, 2)
+  valorDeclarado   Decimal?        @db.Decimal(10, 2)
+  frete            Decimal         @db.Decimal(10, 2)
+  pagador          PagadorFrete    @default(REMETENTE)
+  fretePago        Boolean         @default(false)
+  status           StatusEncomenda @default(RECEBIDA)
+  entregueA        String? // nome de quem retirou
+  createdAt        DateTime        @default(now())
+
+  viagem        Viagem?           @relation(fields: [viagemId], references: [id])
+  origemCidade  Cidade            @relation("EncomendaOrigem", fields: [origemCidadeId], references: [id])
+  destinoCidade Cidade            @relation("EncomendaDestino", fields: [destinoCidadeId], references: [id])
+  eventos       EncomendaEvento[]
+
+  @@index([status])
+}
+
+model EncomendaEvento {
+  id          String          @id @default(cuid())
+  encomendaId String
+  status      StatusEncomenda
+  descricao   String?
+  usuarioId   String?
+  createdAt   DateTime        @default(now())
+
+  encomenda Encomenda @relation(fields: [encomendaId], references: [id], onDelete: Cascade)
+  usuario   Usuario?  @relation(fields: [usuarioId], references: [id])
+}
