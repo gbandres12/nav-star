@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { origemDoSite } from "@/lib/site";
 
 export async function definirSenhaPrimeiroAcessoAction(
   _prevState: { erro?: string; ok?: string } | null,
@@ -27,6 +28,8 @@ export async function definirSenhaPrimeiroAcessoAction(
   });
 
   if (updateAuthError) {
+    if (/session/i.test(updateAuthError.message))
+      return { erro: "Seu link de acesso expirou ou não foi aberto. Peça um novo em “Esqueci a senha” ou ao administrador." };
     return { erro: `Falha ao salvar senha: ${updateAuthError.message}` };
   }
 
@@ -55,7 +58,7 @@ export async function solicitarRecuperacaoAction(
   }
 
   const supabase = await createClient();
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const origin = await origemDoSite();
   const redirectTo = `${origin}/auth/confirm?next=/primeiro-acesso`;
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {

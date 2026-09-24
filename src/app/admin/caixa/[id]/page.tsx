@@ -5,7 +5,9 @@ import { AutoPrint } from "@/components/auto-print";
 import { PrintButton } from "@/components/print-button";
 import { dateTime, label, money } from "@/lib/format";
 import { garantirAcesso } from "@/lib/sessao";
-import { db, EMPRESA, resumoCaixa, usuario } from "@/lib/store";
+import { resumoCaixa } from "@/lib/data";
+import { createClient } from "@/lib/supabase/server";
+import { getConfig } from "@/lib/data/utils";
 
 export const metadata = { title: "Fechamento de caixa" };
 
@@ -14,15 +16,25 @@ export default async function ComprovanteCaixa({ params, searchParams }: PagePro
   const op = await garantirAcesso("/admin/caixa");
   const { id } = await params;
   const sp = await searchParams;
-  const c = db().caixas.find((x) => x.id === id);
-  if (!c || (c.usuarioId !== op.id && op.papel !== "ADMIN" && op.papel !== "GERENTE")) notFound();
-  const r = resumoCaixa(c);
+  
+  const supabase = await createClient();
+  const { data: c } = await supabase
+    .from("caixa_sessoes")
+    .select("*, perfis(nome)")
+    .eq("id", id)
+    .single();
+
+  if (!c || (c.usuario_id !== op.id && op.papel !== "ADMIN" && op.papel !== "GERENTE")) notFound();
+  
+  const r = await resumoCaixa(id);
   const linhas: [string, string][] = [
-    ["Troco inicial", money(c.valorAbertura)],
-    ...r.porMetodo.map((m): [string, string] => [`${label(m.metodo)} (${m.qtd})`, money(m.valor)]),
+    ["Troco inicial", money(c.valor_abertura)],
+    ...r.porMetodo.map((m: any): [string, string] => [`${label(m.metodo)} (${m.qtd})`, money(m.valor)]),
     ["Suprimentos", `+${money(r.suprimentos)}`],
     ["Sangrias", `−${money(r.sangrias)}`],
   ];
+
+  const config = await getConfig();
 
   return (
     <>
@@ -31,13 +43,13 @@ export default async function ComprovanteCaixa({ params, searchParams }: PagePro
         <PrintButton label="Imprimir comprovante" />
       </div>
       <article className="bilhete mx-auto w-[80mm] bg-white p-[4mm] font-[Arial,Helvetica,sans-serif] text-[11px] text-black shadow-lg print:shadow-none">
-        <p className="text-center text-[13px] font-bold">{EMPRESA.nome.toUpperCase()}</p>
-        <p className="text-center text-[9px]">CNPJ {EMPRESA.cnpj}</p>
+        <p className="text-center text-[13px] font-bold">{config.empresa.nome.toUpperCase()}</p>
+        <p className="text-center text-[9px]">CNPJ {config.empresa.cnpj}</p>
         <p className="mt-2 border-y border-dashed border-black py-1 text-center font-bold">FECHAMENTO DE CAIXA</p>
         <dl className="mt-2 space-y-0.5">
-          <Linha k="Operador" v={usuario(c.usuarioId)?.nome ?? "—"} />
-          <Linha k="Abertura" v={dateTime(c.abertoEm)} />
-          <Linha k="Fechamento" v={c.fechadoEm ? dateTime(c.fechadoEm) : "EM ABERTO"} />
+          <Linha k="Operador" v={c.perfis?.nome ?? "—"} />
+          <Linha k="Abertura" v={dateTime(c.aberto_em)} />
+          <Linha k="Fechamento" v={c.fechado_em ? dateTime(c.fechado_em) : "EM ABERTO"} />
         </dl>
         <div className="my-2 border-t border-dashed border-black" />
         <dl className="space-y-0.5">{linhas.map(([k, v]) => <Linha key={k} k={k} v={v} />)}</dl>
@@ -45,7 +57,7 @@ export default async function ComprovanteCaixa({ params, searchParams }: PagePro
         <dl className="space-y-0.5 font-bold">
           <Linha k="Total vendido" v={money(r.vendido)} />
           <Linha k="Dinheiro esperado" v={money(r.esperado)} />
-          <Linha k="Dinheiro contado" v={c.valorContado === undefined ? "—" : money(c.valorContado)} />
+          <Linha k="Dinheiro contado" v={c.valor_fechamento === null ? "—" : money(c.valor_fechamento)} />
           <Linha k="Diferença" v={r.diferenca === undefined ? "—" : money(r.diferenca)} />
         </dl>
         {c.observacao && <p className="mt-2 text-[10px]">Obs.: {c.observacao}</p>}

@@ -1,4 +1,5 @@
 import "server-only";
+import { uuidCidade } from "./catalogo";
 import { createClient } from "../supabase/server";
 import { mapEncomenda, type DbEvento } from "./map";
 import type { Encomenda } from "../types";
@@ -20,7 +21,7 @@ export async function encomendaPorCodigo(codigo: string): Promise<Encomenda | nu
   const supabase = await createClient();
   const { data } = await supabase
     .from("encomendas")
-    .select(`*, encomenda_eventos (*)`)
+    .select(`*, encomenda_eventos (*), origem:cidades!origem_cidade_id(slug), destino:cidades!destino_cidade_id(slug)`)
     .eq("codigo", codigo.toUpperCase().trim())
     .maybeSingle();
 
@@ -48,8 +49,8 @@ export async function criarEncomenda(payload: {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("criar_encomenda", {
     payload: {
-      origem_cidade_id: payload.origemCidadeId,
-      destino_cidade_id: payload.destinoCidadeId,
+      origem_cidade_id: (await uuidCidade(payload.origemCidadeId)) ?? payload.origemCidadeId,
+      destino_cidade_id: (await uuidCidade(payload.destinoCidadeId)) ?? payload.destinoCidadeId,
       remetente_nome: payload.remetenteNome,
       remetente_doc: payload.remetenteDoc,
       remetente_tel: payload.remetenteTel,
@@ -104,14 +105,14 @@ export async function encomendasAdmin(params?: {
   const limite = params?.limite || 25;
   const offset = (pagina - 1) * limite;
 
-  let query = supabase.from("encomendas").select(`*, encomenda_eventos (*)`, { count: "exact" });
+  let query = supabase.from("encomendas").select(`*, encomenda_eventos (*), origem:cidades!origem_cidade_id(slug), destino:cidades!destino_cidade_id(slug)`, { count: "exact" });
 
   if (params?.status && params.status !== "TODOS") {
     query = query.eq("status", params.status as DbStatusEncomenda);
   }
 
   if (params?.cidadeDestinoId) {
-    query = query.eq("destino_cidade_id", params.cidadeDestinoId);
+    query = query.eq("destino_cidade_id", (await uuidCidade(params.cidadeDestinoId)) ?? params.cidadeDestinoId);
   }
 
   if (params?.busca) {

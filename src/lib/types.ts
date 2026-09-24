@@ -149,6 +149,7 @@ export type Pedido = {
   total: number;
   comissaoAgencia: number;
   expiraEm?: string;
+  pagamentoInformadoEm?: string; // cliente avisou que pagou o PIX (aguarda conferência)
   createdAt: string;
   pagamentos: Pagamento[];
 };
@@ -291,4 +292,7 @@ export type Festival = {
   viagemIds: string[];
   cor: "rubro" | "rio" | "sol" | "emerald";
   publicado: boolean;
+  fotos?: FotoFestival[]; // a primeira é a capa
 };
+
+export type FotoFestival = { id: string; url: string };

@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { BellRing, Search } from "lucide-react";
+import { ConfirmarPagamento } from "@/components/admin/confirmar-pagamento";
 import { Badge, Empty, PageHeader } from "@/components/ui";
-import { db, expirarPedidos, passagensDoPedido, viagem, paradaInfo } from "@/lib/store";
-import { dateTime, label, money, onlyDigits } from "@/lib/format";
+import { cidades as listarCidades, linhas as listarLinhas, portos as listarPortos } from "@/lib/data/catalogo";
+import { pedidosAConferir, pedidosAdmin, resumoPassagens } from "@/lib/data/pedidos";
+import { dateShort, dateTime, label, money, time } from "@/lib/format";
 import type { CanalVenda, StatusPedido } from "@/lib/types";
 import { garantirAcesso } from "@/lib/sessao";
 
@@ -12,57 +14,72 @@ const CANAIS: CanalVenda[] = ["SITE", "BALCAO", "AGENCIA", "WHATSAPP"];
 const STATUS: StatusPedido[] = ["PAGO", "AGUARDANDO_PAGAMENTO", "EXPIRADO", "CANCELADO", "REEMBOLSADO"];
 
 export default async function Pedidos({ searchParams }: PageProps<"/admin/pedidos">) {
-  await garantirAcesso("/admin/pedidos");
+  const op = await garantirAcesso("/admin/pedidos");
   const sp = await searchParams;
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
-  const q = s("q").trim().toLowerCase();
+  const q = s("q").trim();
   const canal = s("canal");
   const status = s("status");
+  const aConferir = status === "CONFERIR";
   const pagina = Math.max(1, Number(s("p")) || 1);
-  expirarPedidos();
+  const podeConfirmar = op.papel === "ADMIN" || op.papel === "GERENTE";
 
-  const lista = [...db().pedidos]
-    .filter((p) => (!canal || p.canal === canal) && (!status || p.status === status))
-    .filter((p) => {
-      if (!q) return true;
-      if (p.codigo.toLowerCase().includes(q) || p.numero.toLowerCase().includes(q) || p.compradorNome.toLowerCase().includes(q)) return true;
-      return passagensDoPedido(p.id).some((x) => x.nome.toLowerCase().includes(q) || (onlyDigits(q) && onlyDigits(x.documento).includes(onlyDigits(q))));
-    })
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const porPagina = 25;
-  const paginas = Math.max(1, Math.ceil(lista.length / porPagina));
-  const itens = lista.slice((pagina - 1) * porPagina, pagina * porPagina);
+  const [{ pedidos, total, paginas }, pendentes, linhas, portos, cidades] = await Promise.all([
+    pedidosAdmin({ busca: q, canal, status: aConferir ? "" : status, aConferir, pagina }),
+    pedidosAConferir(),
+    listarLinhas(),
+    listarPortos(),
+    listarCidades(),
+  ]);
+  const resumo = await resumoPassagens(pedidos.map((p) => p.id));
+  const cidadeDaParada = (linhaId: string, ordem: number) => {
+    const portoId = linhas.find((l) => l.id === linhaId)?.paradas[ordem]?.portoId;
+    const cidadeId = portos.find((p) => p.id === portoId)?.cidadeId;
+    return cidades.find((c) => c.id === cidadeId)?.nome ?? "?";
+  };
   const qs = (p: number) => new URLSearchParams({ q, canal, status, p: String(p) }).toString();
 
   return (
     <>
-      <PageHeader title="Pedidos e passagens" subtitle={`${lista.length.toLocaleString("pt-BR")} pedidos encontrados`} />
+      <PageHeader title="Pedidos e passagens" subtitle={`${total.toLocaleString("pt-BR")} pedidos encontrados`} />
+
+      {pendentes > 0 && !aConferir && (
+        <Link href="/admin/pedidos?status=CONFERIR" className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900 hover:bg-amber-100">
+          <BellRing size={20} className="shrink-0" />
+          <span className="flex-1 text-sm">
+            <strong>{pendentes} {pendentes === 1 ? "pedido" : "pedidos"} com PIX informado pelo cliente.</strong> Confira no extrato do banco e confirme para emitir os bilhetes.
+          </span>
+          <span className="text-sm font-semibold">Conferir →</span>
+        </Link>
+      )}
+
       <form className="card mb-6 grid items-end gap-3 p-5 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto]">
         <div>
-          <label className="label">Buscar</label>
+          <label className="label" htmlFor="q">Buscar</label>
           <div className="relative">
             <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
-            <input name="q" defaultValue={q} className="input pl-9" placeholder="Nº do pedido, comprador, passageiro ou CPF" />
+            <input id="q" name="q" defaultValue={q} className="input pl-9" placeholder="Código, nº do pedido, comprador ou telefone" />
           </div>
         </div>
         <div>
-          <label className="label">Canal</label>
-          <select name="canal" defaultValue={canal} className="input">
+          <label className="label" htmlFor="canal">Canal</label>
+          <select id="canal" name="canal" defaultValue={canal} className="input">
             <option value="">Todos</option>
             {CANAIS.map((c) => <option key={c} value={c}>{label(c)}</option>)}
           </select>
         </div>
         <div>
-          <label className="label">Status</label>
-          <select name="status" defaultValue={status} className="input">
+          <label className="label" htmlFor="status">Status</label>
+          <select id="status" name="status" defaultValue={status} className="input">
             <option value="">Todos</option>
+            <option value="CONFERIR">PIX a conferir</option>
             {STATUS.map((c) => <option key={c} value={c}>{label(c)}</option>)}
           </select>
         </div>
         <button className="btn-primary">Filtrar</button>
       </form>
 
-      {itens.length === 0 ? (
+      {pedidos.length === 0 ? (
         <Empty>Nenhum pedido encontrado.</Empty>
       ) : (
         <div className="card overflow-x-auto">
@@ -71,29 +88,41 @@ export default async function Pedidos({ searchParams }: PageProps<"/admin/pedido
               <tr><th>Pedido</th><th>Comprador</th><th>Viagem / trecho</th><th>Pax</th><th>Canal</th><th>Pagamento</th><th className="text-right">Total</th><th>Status</th></tr>
             </thead>
             <tbody>
-              {itens.map((p) => {
-                const pas = passagensDoPedido(p.id);
-                const v = pas[0] && viagem(pas[0].viagemId);
+              {pedidos.map((p) => {
+                const r = resumo.get(p.id);
+                const informado = p.status === "AGUARDANDO_PAGAMENTO" && p.pagamentoInformadoEm;
                 return (
-                  <tr key={p.id}>
+                  <tr key={p.id} className={informado ? "bg-amber-50/60" : undefined}>
                     <td>
                       <Link href={`/admin/pedidos/${p.codigo}`} className="font-mono text-xs font-bold text-rio-700 hover:underline">{p.numero}</Link>
                       <p className="text-xs text-slate-500">{dateTime(p.createdAt)}</p>
                     </td>
-                    <td className="font-medium">{p.compradorNome}</td>
+                    <td>
+                      <p className="font-medium">{p.compradorNome}</p>
+                      <p className="text-xs text-slate-500">{p.compradorTelefone}</p>
+                    </td>
                     <td className="whitespace-nowrap">
-                      {v && (
+                      {r && (
                         <>
-                          <p>{paradaInfo(v.linhaId, pas[0].origemOrdem).cidade.nome} → {paradaInfo(v.linhaId, pas[0].destinoOrdem).cidade.nome}</p>
-                          <Link href={`/admin/viagens/${v.id}`} className="text-xs text-slate-500 hover:underline">{v.id}</Link>
+                          <p>{cidadeDaParada(r.linhaId, r.origemOrdem)} → {cidadeDaParada(r.linhaId, r.destinoOrdem)}</p>
+                          <p className="text-xs text-slate-500">{dateShort(r.partida)} · {time(r.partida)}</p>
                         </>
                       )}
                     </td>
-                    <td className="text-center">{pas.length}</td>
+                    <td className="text-center">{r?.quantidade ?? 0}</td>
                     <td>{label(p.canal)}</td>
-                    <td className="whitespace-nowrap">{label(p.pagamentos[0].metodo)}</td>
+                    <td className="whitespace-nowrap">{p.pagamentos[0] ? label(p.pagamentos[0].metodo) : "—"}</td>
                     <td className="text-right font-semibold tabular-nums">{money(p.total)}</td>
-                    <td><Badge status={p.status} /></td>
+                    <td>
+                      {informado ? (
+                        <>
+                          <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">PIX informado</span>
+                          {podeConfirmar && <ConfirmarPagamento codigo={p.codigo} total={money(p.total)} compacto />}
+                        </>
+                      ) : (
+                        <Badge status={p.status} />
+                      )}
+                    </td>
                   </tr>
                 );
               })}

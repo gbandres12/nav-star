@@ -6,6 +6,8 @@ import { buscarViagens } from "@/lib/data/viagens";
 import { cidade as getCidade } from "@/lib/data/catalogo";
 import { cidadesAtendidas } from "@/lib/data/utils";
 import { festivalDaViagem } from "@/lib/data/festivais";
+import { calendarioViagens, mesAtual, mesValido } from "@/lib/data/calendario";
+import { CalendarioViagens } from "@/components/site/calendario-viagens";
 import { dateShort, duration, localDayKey, longDay, money, time, weekday } from "@/lib/format";
 
 export const metadata = { title: "Passagens" };
@@ -30,9 +32,14 @@ export default async function Viagens({ searchParams }: PageProps<"/viagens">) {
     );
   }
 
+
+  const requestedMes = str("mes");
+  const mes = mesValido(requestedMes) ? requestedMes : mesAtual();
   const todos = await buscarViagens(origem, destino);
+  const calendario = await calendarioViagens(origem, destino, mes);
   const resultados = data ? todos.filter((r) => localDayKey(r.origemHorario) === data) : todos.slice(0, 12);
   const dias = [...new Map(todos.map((r) => [localDayKey(r.origemHorario), r])).values()].slice(0, 10);
+  const datasDisponiveis = [...new Set(todos.map((r) => localDayKey(r.origemHorario)))].sort();
   const o = (await getCidade(origem))!;
   const d = (await getCidade(destino))!;
   const qs = (extra: Record<string, string>) => new URLSearchParams({ origem, destino, ...extra }).toString();
@@ -40,7 +47,7 @@ export default async function Viagens({ searchParams }: PageProps<"/viagens">) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="card mb-6 p-5">
-        <SearchForm cidades={cidades} origem={origem} destino={destino} data={data} hoje={localDayKey(new Date())} compact />
+        <SearchForm cidades={cidades} origem={origem} destino={destino} data={data} hoje={localDayKey(new Date())} compact datasDisponiveis={datasDisponiveis} />
       </div>
 
       <h1 className="text-2xl font-bold tracking-tight">
@@ -48,17 +55,21 @@ export default async function Viagens({ searchParams }: PageProps<"/viagens">) {
       </h1>
       <p className="text-sm text-slate-500">{data ? longDay(`${data}T12:00:00-04:00`) : "Próximas saídas disponíveis"}</p>
 
+      <div className="mt-6">
+        <CalendarioViagens origem={origem} destino={destino} mes={mes} viagens={calendario} selectedDay={data} titulo="Escolha a data da viagem" />
+      </div>
+
       {dias.length > 0 && (
         <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
           <Link href={`/viagens?${qs({})}`} className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${!data ? "border-rio-600 bg-rio-700 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-rio-300"}`}>
             Todas
           </Link>
           {dias.map((r) => {
-            const k = localDayKey(r.saida);
+            const k = localDayKey(r.origemHorario);
             return (
               <Link key={k} href={`/viagens?${qs({ data: k })}`} className={`shrink-0 rounded-xl border px-4 py-2 text-center text-sm ${data === k ? "border-rio-600 bg-rio-700 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-rio-300"}`}>
-                <span className="block text-xs opacity-80">{weekday(r.saida)}</span>
-                <span className="font-semibold">{dateShort(r.saida)}</span>
+                <span className="block text-xs opacity-80">{weekday(r.origemHorario)}</span>
+                <span className="font-semibold">{dateShort(r.origemHorario)}</span>
               </Link>
             );
           })}

@@ -2,9 +2,9 @@ import Link from "next/link";
 import { MonthNav } from "@/components/admin/month-nav";
 import { Empty, PageHeader, Stat } from "@/components/ui";
 import { garantirAcesso } from "@/lib/sessao";
-import { db, usuario } from "@/lib/store";
 import { dateTime, money } from "@/lib/format";
 import { periodoMes } from "@/lib/periodo";
+import { listarCancelamentos } from "@/lib/data/cancelamentos";
 
 export const metadata = { title: "Cancelamentos" };
 
@@ -12,11 +12,10 @@ export default async function Cancelamentos({ searchParams }: PageProps<"/admin/
   const op = await garantirAcesso("/admin/cancelamentos");
   const { mes } = await searchParams;
   const per = periodoMes(mes);
-  const lista = db()
-    .cancelamentos.filter((c) => new Date(c.createdAt) >= per.inicio && new Date(c.createdAt) < per.fim)
-    .filter((c) => op.papel !== "VENDEDOR" || c.usuarioId === op.id)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const pedidos = new Map(db().pedidos.map((p) => [p.id, p]));
+  
+  const cancelamentos = await listarCancelamentos(per.inicio, per.fim);
+  const lista = cancelamentos.filter((c) => op.papel !== "VENDEDOR" || c.usuarioId === op.id);
+
   return (
     <>
       <PageHeader
@@ -36,21 +35,18 @@ export default async function Cancelamentos({ searchParams }: PageProps<"/admin/
           <table className="table-base">
             <thead><tr><th>Data</th><th>Pedido</th><th>Comprador</th><th>Motivo</th><th>Por</th><th className="text-right">Pago</th><th className="text-right">Multa</th><th className="text-right">Reembolso</th></tr></thead>
             <tbody>
-              {lista.map((c) => {
-                const p = pedidos.get(c.pedidoId)!;
-                return (
-                  <tr key={c.id}>
-                    <td className="whitespace-nowrap">{dateTime(c.createdAt)}</td>
-                    <td><Link href={`/admin/pedidos/${p.codigo}`} className="font-mono text-xs font-bold text-rio-700 hover:underline">{p.codigo}</Link></td>
-                    <td>{p.compradorNome}</td>
-                    <td className="text-slate-600">{c.motivo}</td>
-                    <td className="whitespace-nowrap">{usuario(c.usuarioId)?.nome ?? "—"}</td>
-                    <td className="text-right tabular-nums">{money(c.valorPago)}</td>
-                    <td className="text-right tabular-nums">{money(c.multa)}</td>
-                    <td className="text-right font-semibold tabular-nums">{money(c.reembolso)}</td>
-                  </tr>
-                );
-              })}
+              {lista.map((c) => (
+                <tr key={c.id}>
+                  <td className="whitespace-nowrap">{dateTime(c.createdAt)}</td>
+                  <td><Link href={`/admin/pedidos/${c.pedido?.codigo}`} className="font-mono text-xs font-bold text-rio-700 hover:underline">{c.pedido?.codigo}</Link></td>
+                  <td>{c.pedido?.compradorNome}</td>
+                  <td className="text-slate-600">{c.motivo}</td>
+                  <td className="whitespace-nowrap">{c.usuario?.nome ?? "—"}</td>
+                  <td className="text-right tabular-nums">{money(c.valorPago)}</td>
+                  <td className="text-right tabular-nums">{money(c.multa)}</td>
+                  <td className="text-right font-semibold tabular-nums">{money(c.reembolso)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

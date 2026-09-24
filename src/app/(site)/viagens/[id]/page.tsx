@@ -49,6 +49,7 @@ export default async function EscolherPoltrona({ params, searchParams }: PagePro
           ocupados={[...(await assentosOcupados(v.id, o, d))]}
           canal="SITE"
           descontos={(await getConfig()).valores.descontos}
+          minutosReserva={(await getConfig()).empresa.minutosReservaSite}
           acrescimos={await acrescimosEmbarcacao(e.id)}
           livresSemAcrescimo={await livresSemAcrescimo(v.id, o, d)}
           livres={await lugaresLivres(v, o, d)}

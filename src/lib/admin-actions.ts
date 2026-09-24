@@ -23,8 +23,6 @@ import {
   salvarConfig,
   salvarConvenio,
   salvarEmbarcacao,
-  salvarFestival,
-  vincularViagemFestival,
   salvarHorarios,
   salvarLinha,
   salvarMapaAssentos,
@@ -88,7 +86,8 @@ export async function abrirCaixaAction(_: Estado, form: FormData): Promise<Estad
   const a = await exigirPapel(...BALCAO);
   if (a.erro) return { erro: a.erro };
   const { n } = leitor(form);
-  return concluir(abrirCaixa(a.op!.id, n("valorAbertura") || 0), "Caixa aberto.");
+  const { abrirCaixa } = await import("./data/caixa");
+  return concluir(await abrirCaixa(a.op!.id, n("valorAbertura") || 0), "Caixa aberto.");
 }
 
 export async function movimentarCaixaAction(_: Estado, form: FormData): Promise<Estado> {
@@ -96,14 +95,16 @@ export async function movimentarCaixaAction(_: Estado, form: FormData): Promise<
   if (a.erro) return { erro: a.erro };
   const { s, n } = leitor(form);
   const tipo = s("tipo") === "SUPRIMENTO" ? "SUPRIMENTO" : "SANGRIA";
-  return concluir(movimentarCaixa(a.op!.id, tipo, n("valor"), s("observacao")), tipo === "SANGRIA" ? "Sangria registrada." : "Suprimento registrado.");
+  const { movimentarCaixa } = await import("./data/caixa");
+  return concluir(await movimentarCaixa(a.op!.id, tipo, n("valor"), s("observacao")), tipo === "SANGRIA" ? "Sangria registrada." : "Suprimento registrado.");
 }
 
 export async function fecharCaixaAction(_: Estado, form: FormData): Promise<Estado> {
   const a = await exigirPapel(...BALCAO);
   if (a.erro) return { erro: a.erro };
   const { s, n } = leitor(form);
-  const r = fecharCaixa(a.op!.id, n("valorContado"), s("observacao"));
+  const { fecharCaixa } = await import("./data/caixa");
+  const r = await fecharCaixa(a.op!.id, n("valorContado"), s("observacao"));
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
   redirect(`/admin/caixa/${r.caixa.id}?imprimir=1`);
@@ -115,13 +116,12 @@ export async function cancelarAction(_: Estado, form: FormData): Promise<Estado>
   const a = await exigirPapel(...BALCAO);
   if (a.erro) return { erro: a.erro };
   const { s } = leitor(form);
-  const ids = form.getAll("passagem").map(String);
-  if (!ids.length) return { erro: "Marque as passagens que serão canceladas." };
-  const r = cancelarPassagens(s("codigo"), ids, s("motivo"), a.op!.id);
+  const { cancelarPedido } = await import("./data/pedidos");
+  const r = await cancelarPedido(s("codigo"), s("motivo"));
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
   revalidatePath(`/pedido/${s("codigo")}`);
-  return { ok: r.reembolso > 0 ? `Cancelado. Reembolso de ${money(r.reembolso)}${r.multa ? ` (multa de ${money(r.multa)} retida)` : ""}.` : "Cancelado." };
+  return { ok: "Pedido cancelado. As poltronas estão livres de novo." };
 }
 
 // ─── Bilhete ───────────────────────────────────────────────────
@@ -373,53 +373,6 @@ export async function registrarProgressoOnboardingAction(
     revalidatePath("/admin");
   }
   return r;
-}
-
-// ─── Festivais ─────────────────────────────────────────────────
-
-export async function salvarFestivalAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const { s, n, b } = leitor(form);
-  const cor = (["rubro", "rio", "sol", "emerald"].includes(s("cor")) ? s("cor") : "rio") as "rio";
-  const r = salvarFestival({
-    id: s("id") || undefined,
-    slug: s("slug"),
-    nome: s("nome"),
-    chamada: s("chamada"),
-    descricao: s("descricao"),
-    cidadeId: s("cidadeId"),
-    inicio: s("inicio"),
-    fim: s("fim"),
-    acrescimoPercentual: n("acrescimoPercentual") || 0,
-    cor,
-    publicado: b("publicado"),
-  });
-  if (r.ok && !s("id")) {
-    revalidatePath("/admin", "layout");
-    redirect(`/admin/festivais/${r.id}`);
-  }
-  return concluir(r, "Festival salvo.", "/", "/festivais");
-}
-
-export async function vincularViagemAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const { s } = leitor(form);
-  const vincular = s("acao") !== "remover";
-  return concluir(vincularViagemFestival(s("festivalId"), s("viagemId"), vincular), vincular ? "Viagem incluída no festival." : "Viagem retirada do festival.", "/", "/festivais");
-}
-
-/** Cria uma saída extra e já a coloca no festival */
-export async function viagemExtraFestivalAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const { s } = leitor(form);
-  const r = criarViagemAvulsa(s("linhaId"), s("embarcacaoId"), s("dia"), s("hora"));
-  if (!r.ok) return { erro: r.erro };
-  const v = vincularViagemFestival(s("festivalId"), r.viagem.id, true);
-  if (!v.ok) return { erro: `Viagem ${r.viagem.id} criada, mas: ${v.erro}` };
-  return concluir(v, `Viagem extra ${r.viagem.id} criada e incluída no festival.`, "/", "/festivais");
 }
 
 // ─── Configurações ─────────────────────────────────────────────

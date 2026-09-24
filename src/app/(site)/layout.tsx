@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { MessageCircle, PackageSearch, PartyPopper, Ticket } from "lucide-react";
 import { Logo } from "@/components/ui";
-import { EMPRESA, festivaisNoSite } from "@/lib/store";
+import { festivaisNoSite } from "@/lib/data/festivais";
+import { getConfig } from "@/lib/data/utils";
 
-export default function SiteLayout({ children }: LayoutProps<"/">) {
+export default async function SiteLayout({ children }: LayoutProps<"/">) {
+  const [{ empresa }, festivais] = await Promise.all([getConfig(), festivaisNoSite()]);
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -15,7 +17,7 @@ export default function SiteLayout({ children }: LayoutProps<"/">) {
             <Link href="/viagens" className="hidden rounded-lg px-3 py-2 hover:bg-slate-100 sm:flex sm:items-center sm:gap-2">
               <Ticket size={16} /> Passagens
             </Link>
-            {festivaisNoSite().length > 0 && (
+            {festivais.length > 0 && (
               <Link href="/festivais" className="flex items-center gap-2 rounded-lg px-3 py-2 font-semibold text-rubro-600 hover:bg-rubro-50">
                 <PartyPopper size={16} /> <span className="hidden sm:inline">Festivais</span>
               </Link>
@@ -23,7 +25,7 @@ export default function SiteLayout({ children }: LayoutProps<"/">) {
             <Link href="/rastreio" className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-slate-100">
               <PackageSearch size={16} /> <span className="hidden sm:inline">Rastrear encomenda</span>
             </Link>
-            <a href={`https://wa.me/${EMPRESA.whatsapp}`} className="ml-1 flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 font-semibold text-white hover:bg-emerald-600">
+            <a href={`https://wa.me/${empresa.whatsapp}`} className="ml-1 flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 font-semibold text-white hover:bg-emerald-600">
               <MessageCircle size={16} /> <span className="hidden sm:inline">WhatsApp</span>
             </a>
           </nav>
@@ -34,12 +36,12 @@ export default function SiteLayout({ children }: LayoutProps<"/">) {
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-sm text-slate-600 sm:grid-cols-3">
           <div className="space-y-3">
             <Logo />
-            <p>{EMPRESA.razaoSocial}<br />CNPJ {EMPRESA.cnpj}</p>
+            <p>{empresa.razaoSocial}<br />CNPJ {empresa.cnpj}</p>
           </div>
           <div>
             <p className="mb-2 font-semibold text-slate-900">Atendimento (WhatsApp)</p>
             <ul className="space-y-1">
-              {EMPRESA.whatsapps.map((w) => (
+              {empresa.whatsapps.map((w) => (
                 <li key={w.link}>
                   <a href={`https://wa.me/${w.link}`} className="hover:text-rio-700">{w.cidade}: {w.numero}</a>
                 </li>

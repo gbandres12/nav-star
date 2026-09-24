@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { Badge, Empty, PageHeader } from "@/components/ui";
-import { cidade, db } from "@/lib/store";
 import { dateTime, label, money } from "@/lib/format";
 import type { StatusEncomenda } from "@/lib/types";
+import { encomendasAdmin, cidades } from "@/lib/data";
 
 export const metadata = { title: "Encomendas" };
 
@@ -13,7 +13,11 @@ export default async function Encomendas({ searchParams }: PageProps<"/admin/enc
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().toLowerCase() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
-  const todas = db().encomendas;
+  
+  const { encomendas: todas } = await encomendasAdmin({ limite: 10000 });
+  const allCidades = await cidades();
+  const getCidade = (id: string) => allCidades.find(c => c.id === id);
+
   const lista = todas
     .filter((e) => !status || e.status === status)
     .filter((e) => !q || [e.codigo, e.remetenteNome, e.destinatarioNome, e.descricao].some((x) => x.toLowerCase().includes(q)));
@@ -63,7 +67,7 @@ export default async function Encomendas({ searchParams }: PageProps<"/admin/enc
                     <p className="text-xs text-slate-500">{dateTime(e.createdAt)}</p>
                   </td>
                   <td className="max-w-48 truncate">{e.descricao}</td>
-                  <td className="whitespace-nowrap">{cidade(e.origemCidadeId).nome} → {cidade(e.destinoCidadeId).nome}</td>
+                  <td className="whitespace-nowrap">{getCidade(e.origemCidadeId)?.nome} → {getCidade(e.destinoCidadeId)?.nome}</td>
                   <td className="whitespace-nowrap">{e.remetenteNome}</td>
                   <td className="whitespace-nowrap">{e.destinatarioNome}</td>
                   <td className="whitespace-nowrap tabular-nums">{e.pesoKg.toLocaleString("pt-BR")} kg</td>

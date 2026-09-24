@@ -77,6 +77,7 @@ export type Database = {
           ativo: boolean
           codigo: string
           coluna: number
+          comodo_id: string | null
           created_at: string
           embarcacao_id: string
           fileira: number
@@ -88,6 +89,7 @@ export type Database = {
           ativo?: boolean
           codigo: string
           coluna: number
+          comodo_id?: string | null
           created_at?: string
           embarcacao_id: string
           fileira: number
@@ -99,6 +101,7 @@ export type Database = {
           ativo?: boolean
           codigo?: string
           coluna?: number
+          comodo_id?: string | null
           created_at?: string
           embarcacao_id?: string
           fileira?: number
@@ -108,10 +111,52 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "assentos_comodo_id_fkey"
+            columns: ["comodo_id"]
+            isOneToOne: false
+            referencedRelation: "comodos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "assentos_embarcacao_id_fkey"
             columns: ["embarcacao_id"]
             isOneToOne: false
             referencedRelation: "embarcacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      caixa_movimentos: {
+        Row: {
+          caixa_id: string
+          created_at: string
+          id: string
+          observacao: string
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          caixa_id: string
+          created_at?: string
+          id?: string
+          observacao: string
+          tipo: string
+          valor: number
+        }
+        Update: {
+          caixa_id?: string
+          created_at?: string
+          id?: string
+          observacao?: string
+          tipo?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caixa_movimentos_caixa_id_fkey"
+            columns: ["caixa_id"]
+            isOneToOne: false
+            referencedRelation: "caixa_sessoes"
             referencedColumns: ["id"]
           },
         ]
@@ -126,6 +171,7 @@ export type Database = {
           updated_at: string
           usuario_id: string
           valor_abertura: number
+          valor_contado: number | null
           valor_fechamento: number | null
         }
         Insert: {
@@ -137,6 +183,7 @@ export type Database = {
           updated_at?: string
           usuario_id: string
           valor_abertura: number
+          valor_contado?: number | null
           valor_fechamento?: number | null
         }
         Update: {
@@ -148,11 +195,80 @@ export type Database = {
           updated_at?: string
           usuario_id?: string
           valor_abertura?: number
+          valor_contado?: number | null
           valor_fechamento?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "caixa_sessoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "perfis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cancelamentos: {
+        Row: {
+          created_at: string
+          empresa_id: string
+          id: string
+          motivo: string
+          multa: number
+          passagem_ids: string[]
+          pedido_id: string
+          reembolso: number
+          usuario_id: string | null
+          valor_pago: number
+        }
+        Insert: {
+          created_at?: string
+          empresa_id: string
+          id?: string
+          motivo: string
+          multa: number
+          passagem_ids: string[]
+          pedido_id: string
+          reembolso: number
+          usuario_id?: string | null
+          valor_pago: number
+        }
+        Update: {
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          motivo?: string
+          multa?: number
+          passagem_ids?: string[]
+          pedido_id?: string
+          reembolso?: number
+          usuario_id?: string | null
+          valor_pago?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cancelamentos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_publica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancelamentos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancelamentos_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancelamentos_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "perfis"
@@ -226,6 +342,204 @@ export type Database = {
         }
         Relationships: []
       }
+      comodos: {
+        Row: {
+          acrescimo: number
+          ativo: boolean
+          cor: string
+          created_at: string
+          descricao: string
+          embarcacao_id: string
+          empresa_id: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          acrescimo: number
+          ativo?: boolean
+          cor: string
+          created_at?: string
+          descricao: string
+          embarcacao_id: string
+          empresa_id: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          acrescimo?: number
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          descricao?: string
+          embarcacao_id?: string
+          empresa_id?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comodos_embarcacao_id_fkey"
+            columns: ["embarcacao_id"]
+            isOneToOne: false
+            referencedRelation: "embarcacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comodos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_publica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comodos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      configuracoes_bilhete: {
+        Row: {
+          antecedencia_embarque_min: number
+          empresa_id: string
+          largura_mm: number
+          local_embarque: string
+          mensagens: string[]
+          mostrar_beneficios: boolean
+          mostrar_logo: boolean
+          mostrar_qr: boolean
+          mostrar_valores: boolean
+          titulo: string
+        }
+        Insert: {
+          antecedencia_embarque_min?: number
+          empresa_id: string
+          largura_mm: number
+          local_embarque: string
+          mensagens?: string[]
+          mostrar_beneficios?: boolean
+          mostrar_logo?: boolean
+          mostrar_qr?: boolean
+          mostrar_valores?: boolean
+          titulo: string
+        }
+        Update: {
+          antecedencia_embarque_min?: number
+          empresa_id?: string
+          largura_mm?: number
+          local_embarque?: string
+          mensagens?: string[]
+          mostrar_beneficios?: boolean
+          mostrar_logo?: boolean
+          mostrar_qr?: boolean
+          mostrar_valores?: boolean
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "configuracoes_bilhete_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: true
+            referencedRelation: "empresa_publica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "configuracoes_bilhete_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: true
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convenios: {
+        Row: {
+          ativo: boolean
+          cnpj: string | null
+          contato: string | null
+          created_at: string
+          desconto_percentual: number
+          empresa_id: string
+          faturado: boolean
+          id: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean
+          cnpj?: string | null
+          contato?: string | null
+          created_at?: string
+          desconto_percentual: number
+          empresa_id: string
+          faturado?: boolean
+          id?: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean
+          cnpj?: string | null
+          contato?: string | null
+          created_at?: string
+          desconto_percentual?: number
+          empresa_id?: string
+          faturado?: boolean
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convenios_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_publica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convenios_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      descontos_historico: {
+        Row: {
+          alterado_em: string
+          alterado_por: string | null
+          id: string
+          percentual_anterior: number | null
+          percentual_novo: number
+          tipo: Database["public"]["Enums"]["tipo_passageiro"]
+        }
+        Insert: {
+          alterado_em?: string
+          alterado_por?: string | null
+          id?: string
+          percentual_anterior?: number | null
+          percentual_novo: number
+          tipo: Database["public"]["Enums"]["tipo_passageiro"]
+        }
+        Update: {
+          alterado_em?: string
+          alterado_por?: string | null
+          id?: string
+          percentual_anterior?: number | null
+          percentual_novo?: number
+          tipo?: Database["public"]["Enums"]["tipo_passageiro"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "descontos_historico_alterado_por_fkey"
+            columns: ["alterado_por"]
+            isOneToOne: false
+            referencedRelation: "perfis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       descontos_tipo_passageiro: {
         Row: {
           created_at: string
@@ -249,43 +563,55 @@ export type Database = {
       }
       embarcacoes: {
         Row: {
+          ano: number | null
+          assento_livre: boolean
           capacidade_carga_kg: number | null
           capacidade_passageiros: number
           colunas_mapa: number
+          comprimento_m: number | null
           created_at: string
           empresa_id: string
           foto_url: string | null
           id: string
           inscricao_capitania: string | null
           nome: string
+          observacao: string | null
           status: Database["public"]["Enums"]["status_embarcacao"]
           tipo: string
           updated_at: string
         }
         Insert: {
+          ano?: number | null
+          assento_livre?: boolean
           capacidade_carga_kg?: number | null
           capacidade_passageiros: number
           colunas_mapa: number
+          comprimento_m?: number | null
           created_at?: string
           empresa_id: string
           foto_url?: string | null
           id?: string
           inscricao_capitania?: string | null
           nome: string
+          observacao?: string | null
           status?: Database["public"]["Enums"]["status_embarcacao"]
           tipo?: string
           updated_at?: string
         }
         Update: {
+          ano?: number | null
+          assento_livre?: boolean
           capacidade_carga_kg?: number | null
           capacidade_passageiros?: number
           colunas_mapa?: number
+          comprimento_m?: number | null
           created_at?: string
           empresa_id?: string
           foto_url?: string | null
           id?: string
           inscricao_capitania?: string | null
           nome?: string
+          observacao?: string | null
           status?: Database["public"]["Enums"]["status_embarcacao"]
           tipo?: string
           updated_at?: string
@@ -309,46 +635,64 @@ export type Database = {
       }
       empresas: {
         Row: {
+          beneficios: string[] | null
           cnpj: string
           created_at: string
           email: string
+          horas_cancelamento_sem_multa: number
           id: string
           inscricao_estadual: string | null
           logo_url: string | null
           minutos_reserva_site: number
+          multa_cancelamento_pct: number
           nome_fantasia: string
           razao_social: string
+          taxa_sistema_pct: number
           telefone: string
+          tipo_servico: string | null
           updated_at: string
           whatsapp: string | null
+          whatsapps: Json | null
         }
         Insert: {
+          beneficios?: string[] | null
           cnpj: string
           created_at?: string
           email: string
+          horas_cancelamento_sem_multa?: number
           id?: string
           inscricao_estadual?: string | null
           logo_url?: string | null
           minutos_reserva_site?: number
+          multa_cancelamento_pct?: number
           nome_fantasia: string
           razao_social: string
+          taxa_sistema_pct?: number
           telefone: string
+          tipo_servico?: string | null
           updated_at?: string
           whatsapp?: string | null
+          whatsapps?: Json | null
         }
         Update: {
+          beneficios?: string[] | null
           cnpj?: string
           created_at?: string
           email?: string
+          horas_cancelamento_sem_multa?: number
           id?: string
           inscricao_estadual?: string | null
           logo_url?: string | null
           minutos_reserva_site?: number
+          multa_cancelamento_pct?: number
           nome_fantasia?: string
           razao_social?: string
+          taxa_sistema_pct?: number
           telefone?: string
+          tipo_servico?: string | null
           updated_at?: string
           whatsapp?: string | null
+          whatsapps?: Json | null
         }
         Relationships: []
       }
@@ -503,6 +847,106 @@ export type Database = {
             foreignKeyName: "encomendas_viagem_id_fkey"
             columns: ["viagem_id"]
             isOneToOne: false
+            referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      festivais: {
+        Row: {
+          acrescimo_percentual: number
+          chamada: string
+          cidade_id: string
+          cor: string
+          created_at: string
+          descricao: string
+          empresa_id: string
+          fim: string
+          id: string
+          inicio: string
+          nome: string
+          publicado: boolean
+          slug: string
+        }
+        Insert: {
+          acrescimo_percentual?: number
+          chamada: string
+          cidade_id: string
+          cor: string
+          created_at?: string
+          descricao: string
+          empresa_id: string
+          fim: string
+          id?: string
+          inicio: string
+          nome: string
+          publicado?: boolean
+          slug: string
+        }
+        Update: {
+          acrescimo_percentual?: number
+          chamada?: string
+          cidade_id?: string
+          cor?: string
+          created_at?: string
+          descricao?: string
+          empresa_id?: string
+          fim?: string
+          id?: string
+          inicio?: string
+          nome?: string
+          publicado?: boolean
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "festivais_cidade_id_fkey"
+            columns: ["cidade_id"]
+            isOneToOne: false
+            referencedRelation: "cidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "festivais_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_publica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "festivais_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      festival_viagens: {
+        Row: {
+          festival_id: string
+          viagem_id: string
+        }
+        Insert: {
+          festival_id: string
+          viagem_id: string
+        }
+        Update: {
+          festival_id?: string
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "festival_viagens_festival_id_fkey"
+            columns: ["festival_id"]
+            isOneToOne: false
+            referencedRelation: "festivais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "festival_viagens_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: true
             referencedRelation: "viagens"
             referencedColumns: ["id"]
           },
@@ -728,15 +1172,18 @@ export type Database = {
       }
       passagens: {
         Row: {
+          acrescimo: number
           assento_id: string | null
           bpe_chave: string | null
           bpe_protocolo: string | null
+          convenio_id: string | null
           created_at: string
           destino_ordem: number
           documento: string
           embarcado_em: string | null
           empresa_id: string
           id: string
+          impressoes: number
           nascimento: string | null
           nome: string
           origem_ordem: number
@@ -753,15 +1200,18 @@ export type Database = {
           viagem_id: string
         }
         Insert: {
+          acrescimo?: number
           assento_id?: string | null
           bpe_chave?: string | null
           bpe_protocolo?: string | null
+          convenio_id?: string | null
           created_at?: string
           destino_ordem: number
           documento: string
           embarcado_em?: string | null
           empresa_id: string
           id?: string
+          impressoes?: number
           nascimento?: string | null
           nome: string
           origem_ordem: number
@@ -778,15 +1228,18 @@ export type Database = {
           viagem_id: string
         }
         Update: {
+          acrescimo?: number
           assento_id?: string | null
           bpe_chave?: string | null
           bpe_protocolo?: string | null
+          convenio_id?: string | null
           created_at?: string
           destino_ordem?: number
           documento?: string
           embarcado_em?: string | null
           empresa_id?: string
           id?: string
+          impressoes?: number
           nascimento?: string | null
           nome?: string
           origem_ordem?: number
@@ -808,6 +1261,13 @@ export type Database = {
             columns: ["assento_id"]
             isOneToOne: false
             referencedRelation: "assentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passagens_convenio_id_fkey"
+            columns: ["convenio_id"]
+            isOneToOne: false
+            referencedRelation: "convenios"
             referencedColumns: ["id"]
           },
           {
@@ -1151,14 +1611,110 @@ export type Database = {
           },
         ]
       }
+      tripulantes: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          documento: string
+          embarcacao_id: string | null
+          empresa_id: string
+          funcao: Database["public"]["Enums"]["funcao_tripulante"]
+          habilitacao: string
+          id: string
+          nome: string
+          telefone: string
+          validade_habilitacao: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          documento: string
+          embarcacao_id?: string | null
+          empresa_id: string
+          funcao: Database["public"]["Enums"]["funcao_tripulante"]
+          habilitacao: string
+          id?: string
+          nome: string
+          telefone: string
+          validade_habilitacao?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          documento?: string
+          embarcacao_id?: string | null
+          empresa_id?: string
+          funcao?: Database["public"]["Enums"]["funcao_tripulante"]
+          habilitacao?: string
+          id?: string
+          nome?: string
+          telefone?: string
+          validade_habilitacao?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tripulantes_embarcacao_id_fkey"
+            columns: ["embarcacao_id"]
+            isOneToOne: false
+            referencedRelation: "embarcacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tripulantes_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_publica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tripulantes_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      viagem_tripulantes: {
+        Row: {
+          tripulante_id: string
+          viagem_id: string
+        }
+        Insert: {
+          tripulante_id: string
+          viagem_id: string
+        }
+        Update: {
+          tripulante_id?: string
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viagem_tripulantes_tripulante_id_fkey"
+            columns: ["tripulante_id"]
+            isOneToOne: false
+            referencedRelation: "tripulantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagem_tripulantes_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       viagens: {
         Row: {
+          avulsa: boolean
           comandante: string | null
           created_at: string
           embarcacao_id: string
           empresa_id: string
           id: string
           linha_id: string
+          motivo_cancelamento: string | null
           observacao: string | null
           partida: string
           status: Database["public"]["Enums"]["status_viagem"]
@@ -1166,12 +1722,14 @@ export type Database = {
           vendas_abertas: boolean
         }
         Insert: {
+          avulsa?: boolean
           comandante?: string | null
           created_at?: string
           embarcacao_id: string
           empresa_id: string
           id?: string
           linha_id: string
+          motivo_cancelamento?: string | null
           observacao?: string | null
           partida: string
           status?: Database["public"]["Enums"]["status_viagem"]
@@ -1179,12 +1737,14 @@ export type Database = {
           vendas_abertas?: boolean
         }
         Update: {
+          avulsa?: boolean
           comandante?: string | null
           created_at?: string
           embarcacao_id?: string
           empresa_id?: string
           id?: string
           linha_id?: string
+          motivo_cancelamento?: string | null
           observacao?: string | null
           partida?: string
           status?: Database["public"]["Enums"]["status_viagem"]
@@ -1226,6 +1786,7 @@ export type Database = {
     Views: {
       empresa_publica: {
         Row: {
+          beneficios: string[] | null
           cnpj: string | null
           email: string | null
           id: string | null
@@ -1234,9 +1795,12 @@ export type Database = {
           nome_fantasia: string | null
           razao_social: string | null
           telefone: string | null
+          tipo_servico: string | null
           whatsapp: string | null
+          whatsapps: Json | null
         }
         Insert: {
+          beneficios?: string[] | null
           cnpj?: string | null
           email?: string | null
           id?: string | null
@@ -1245,9 +1809,12 @@ export type Database = {
           nome_fantasia?: string | null
           razao_social?: string | null
           telefone?: string | null
+          tipo_servico?: string | null
           whatsapp?: string | null
+          whatsapps?: Json | null
         }
         Update: {
+          beneficios?: string[] | null
           cnpj?: string | null
           email?: string | null
           id?: string | null
@@ -1256,7 +1823,9 @@ export type Database = {
           nome_fantasia?: string | null
           razao_social?: string | null
           telefone?: string | null
+          tipo_servico?: string | null
           whatsapp?: string | null
+          whatsapps?: Json | null
         }
         Relationships: []
       }
@@ -1289,6 +1858,21 @@ export type Database = {
         Args: { destino_slug: string; dia?: string; origem_slug: string }
         Returns: Json
       }
+      calendario_viagens: {
+        Args: { destino_slug: string; mes: string; origem_slug: string }
+        Returns: {
+          chegada: string
+          destino_ordem: number
+          dia: string
+          festival: string
+          livres: number
+          origem_ordem: number
+          saida: string
+          taxa: number
+          valor: number
+          viagem_id: string
+        }[]
+      }
       cancelar_pedido: {
         Args: { codigo: string; motivo?: string }
         Returns: Json
@@ -1310,7 +1894,19 @@ export type Database = {
     }
     Enums: {
       canal_venda: "SITE" | "BALCAO" | "AGENCIA" | "WHATSAPP"
-      metodo_pagamento: "PIX" | "CARTAO_CREDITO" | "CARTAO_DEBITO" | "DINHEIRO"
+      funcao_tripulante:
+        | "COMANDANTE"
+        | "IMEDIATO"
+        | "MAQUINISTA"
+        | "MARINHEIRO"
+        | "TAIFEIRO"
+        | "COMISSARIO"
+      metodo_pagamento:
+        | "PIX"
+        | "CARTAO_CREDITO"
+        | "CARTAO_DEBITO"
+        | "DINHEIRO"
+        | "FATURADO"
       pagador_frete: "REMETENTE" | "DESTINATARIO"
       papel_usuario: "ADMIN" | "GERENTE" | "VENDEDOR" | "CONFERENTE"
       status_embarcacao: "ATIVA" | "MANUTENCAO" | "INATIVA"
@@ -1476,7 +2072,21 @@ export const Constants = {
   public: {
     Enums: {
       canal_venda: ["SITE", "BALCAO", "AGENCIA", "WHATSAPP"],
-      metodo_pagamento: ["PIX", "CARTAO_CREDITO", "CARTAO_DEBITO", "DINHEIRO"],
+      funcao_tripulante: [
+        "COMANDANTE",
+        "IMEDIATO",
+        "MAQUINISTA",
+        "MARINHEIRO",
+        "TAIFEIRO",
+        "COMISSARIO",
+      ],
+      metodo_pagamento: [
+        "PIX",
+        "CARTAO_CREDITO",
+        "CARTAO_DEBITO",
+        "DINHEIRO",
+        "FATURADO",
+      ],
       pagador_frete: ["REMETENTE", "DESTINATARIO"],
       papel_usuario: ["ADMIN", "GERENTE", "VENDEDOR", "CONFERENTE"],
       status_embarcacao: ["ATIVA", "MANUTENCAO", "INATIVA"],

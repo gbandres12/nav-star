@@ -59,6 +59,20 @@ export function PrimeiroAcessoForm() {
     );
   }
 
+  // Sem sessão não dá para gravar a senha: orienta a pedir um link novo em vez de deixar preencher à toa
+  if (!usuarioEmail) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Para criar sua senha, abra o <strong>link de acesso</strong> que você recebeu por WhatsApp ou e-mail. O link vale por
+          tempo limitado e só pode ser usado uma vez.
+        </div>
+        <a href="/recuperar-senha" className="btn-primary w-full py-3">Receber um novo link por e-mail</a>
+        <p className="text-xs text-slate-500">Se o administrador cadastrou você, ele também pode gerar um novo link em Usuários.</p>
+      </div>
+    );
+  }
+
   return (
     <form action={formAction} className="space-y-5">
       {state?.erro && (

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Anchor, Navigation, Wrench } from "lucide-react";
 import { Badge, OccupancyBar, PageHeader } from "@/components/ui";
 import { garantirAcesso } from "@/lib/sessao";
-import { chegadaFinal, cidade, db, embarcacao, horarioParada, linha, ocupacaoViagem, paradaInfo, posicaoFrota, type PosicaoEmbarcacao } from "@/lib/store";
 import { dateShort, dateTime, label, time } from "@/lib/format";
+import { carregarDadosMapa, chegadaFinal, cidade, embarcacao, horarioParada, linha, ocupacaoViagem, paradaInfo, posicaoFrota, type PosicaoEmbarcacao } from "@/lib/data/mapa";
 
 export const metadata = { title: "Mapa de embarcações" };
 
@@ -13,9 +13,12 @@ const MARGEM = 70;
 export default async function Mapa() {
   await garantirAcesso("/admin/mapa");
   const agora = new Date();
+  
+  const db = await carregarDadosMapa();
   const frota = posicaoFrota(agora);
+  
   // Ordem do rio: a linha ativa com mais paradas define a sequência das cidades no desenho
-  const base = [...db().linhas].filter((l) => l.ativa).sort((a, b) => b.paradas.length - a.paradas.length)[0];
+  const base = [...db.linhas].filter((l) => l.ativa).sort((a, b) => b.paradas.length - a.paradas.length)[0];
   const ordem = base ? base.paradas.map((p) => paradaInfo(base.id, p.ordem).cidade.id) : [];
   const x = (cidadeId: string) => MARGEM + (ordem.indexOf(cidadeId) / Math.max(1, ordem.length - 1)) * (W - 2 * MARGEM);
   const y = (i: number) => 110 + Math.sin(i * 1.3) * 18; // leve curva do rio

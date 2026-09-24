@@ -7,3 +7,5 @@ export * from "./financeiro";
 export * from "./usuarios";
 export * from "./festivais";
 export * from "./utils";
+export * from "./caixa";
+export * from "./cancelamentos";

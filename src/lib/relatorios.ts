@@ -1,24 +1,91 @@
 import "server-only";
 import { date, dateShort, label, localDayKey, manausDate, money, time } from "./format";
 import { RELATORIOS, type SlugRelatorio } from "./relatorios-lista";
-import {
-  cidade,
-  config,
-  convenio,
-  db,
-  embarcacao,
-  linha,
-  ocupacaoViagem,
-  paradaInfo,
-  passagensDaViagem,
-  porto,
-  resumoCaixa,
-  rotuloAssento,
-  tarifaViagem,
-  usuario,
-  viagem,
-} from "./store";
-import type { Passagem, Pedido } from "./types";
+import type { Passagem, Pedido, Viagem, Embarcacao, CaixaSessao } from "./types";
+import type { Db } from "./seed";
+import { buscarBaseDeDadosParaRelatorios } from "./data/relatorios";
+
+let _db: Db;
+export const db = () => _db;
+export const config = () => _db.config;
+export const viagem = (id: string) => _db.viagens.find(v => v.id === id);
+export const linha = (id: string) => _db.linhas.find(l => l.id === id)!;
+export const embarcacao = (id: string) => _db.embarcacoes.find(e => e.id === id)!;
+export const porto = (id: string) => _db.portos.find(p => p.id === id)!;
+export const cidade = (id: string) => _db.cidades.find(c => c.id === id)!;
+export const usuario = (id: string) => _db.usuarios.find(u => u.id === id);
+export const convenio = (id: string) => _db.convenios.find(c => c.id === id);
+export const passagensDaViagem = (viagemId: string) => _db.passagens.filter(p => p.viagemId === viagemId && p.status !== "CANCELADA");
+
+export function paradaInfo(linhaId: string, ordem: number) {
+  const l = linha(linhaId);
+  const p = porto(l.paradas[ordem].portoId);
+  return { ...l.paradas[ordem], porto: p, cidade: cidade(p.cidadeId) };
+}
+
+export function rotuloAssento(p: Passagem) {
+  if (!p.assentoId) return "Livre";
+  const v = viagem(p.viagemId);
+  return (v && embarcacao(v.embarcacaoId).assentos.find((a) => a.id === p.assentoId)?.codigo) ?? "—";
+}
+
+export function passagemAtiva(p: Passagem, agora = new Date()) {
+  if (p.status === "CANCELADA") return false;
+  if (p.status === "RESERVADA") {
+    const ped = _db.pedidos.find((x) => x.id === p.pedidoId)!;
+    return ped.status === "AGUARDANDO_PAGAMENTO" && !!ped.expiraEm && new Date(ped.expiraEm) > agora;
+  }
+  return true;
+}
+
+export function passageirosPorSegmento(v: Viagem) {
+  const l = linha(v.linhaId);
+  const cont = new Array(l.paradas.length - 1).fill(0);
+  const ativos = _db.passagens.filter((p) => p.viagemId === v.id && passagemAtiva(p));
+  for (const p of ativos) {
+    for (let s = p.origemOrdem; s < p.destinoOrdem; s++) cont[s]++;
+  }
+  return cont;
+}
+
+export function capacidade(e: Embarcacao) {
+  return e.capacidadePassageiros;
+}
+
+export function ocupacaoViagem(v: Viagem) {
+  const total = capacidade(embarcacao(v.embarcacaoId));
+  const max = Math.max(0, ...passageirosPorSegmento(v));
+  return { ocupados: max, total, pct: total ? Math.round((max / total) * 100) : 0 };
+}
+
+export function tarifaViagem(v: Viagem, origem: number, destino: number) {
+  const l = linha(v.linhaId);
+  return l.tarifas[origem]?.[destino] ?? 0;
+}
+
+export function resumoCaixa(c: CaixaSessao) {
+  const pags = _db.pedidos.flatMap((p) => p.pagamentos.map((pg) => ({ pg, pedido: p }))).filter((x) => x.pg.status === "APROVADO" && (x.pedido as any).caixaId === c.id);
+  const porMetodo = new Map<string, { qtd: number; valor: number }>();
+  for (const p of pags) {
+    const m = porMetodo.get(p.pg.metodo) ?? { qtd: 0, valor: 0 };
+    porMetodo.set(p.pg.metodo, { qtd: m.qtd + 1, valor: m.valor + p.pg.valor });
+  }
+  const dinheiro = porMetodo.get("DINHEIRO")?.valor ?? 0;
+  const suprimentos = c.movimentos.filter((m) => m.tipo === "SUPRIMENTO").reduce((s, m) => s + m.valor, 0);
+  const sangrias = c.movimentos.filter((m) => m.tipo === "SANGRIA").reduce((s, m) => s + m.valor, 0);
+  const esperado = c.valorAbertura + dinheiro + suprimentos - sangrias;
+  const dif = c.valorContado !== undefined ? c.valorContado - esperado : undefined;
+  return {
+    pagamentos: pags,
+    porMetodo: [...porMetodo.entries()].map(([metodo, v]) => ({ metodo, ...v })).sort((a, b) => b.valor - a.valor),
+    dinheiro,
+    suprimentos,
+    sangrias,
+    esperado,
+    vendido: pags.reduce((s, x) => s + x.pg.valor, 0),
+    diferenca: dif && Math.abs(dif) < 0.01 ? 0 : dif,
+  };
+}
 
 // ─── Filtros ───────────────────────────────────────────────────
 
@@ -598,7 +665,7 @@ const GERADORES: Record<SlugRelatorio, Gerador> = {
         comprador: p.compradorNome,
         passagens: c.passagemIds.length,
         motivo: c.motivo,
-        por: usuario(c.usuarioId)?.nome ?? "—",
+        por: usuario(c.usuarioId ?? "")?.nome ?? "—",
         pago: c.valorPago,
         multa: c.multa,
         reembolso: c.reembolso,
@@ -667,9 +734,12 @@ const GERADORES: Record<SlugRelatorio, Gerador> = {
   },
 };
 
-export function gerarRelatorio(slug: string, f: Filtros): Relatorio | undefined {
+export async function gerarRelatorio(slug: string, f: Filtros): Promise<Relatorio | undefined> {
   const meta = RELATORIOS.find((r) => r.slug === slug);
   if (!meta) return undefined;
+  
+  _db = await buscarBaseDeDadosParaRelatorios(f);
+  
   return { titulo: meta.titulo, descricao: meta.descricao, ...GERADORES[meta.slug](f) };
 }
 
@@ -681,6 +751,6 @@ export function paraCsv(r: Relatorio) {
     return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const linhas = [r.colunas.map((c) => cel(c.l)).join(";"), ...[...r.linhas, ...(r.total ? [r.total] : [])].map((l) => r.colunas.map((c) => cel(l[c.k], c.t)).join(";"))];
-  return "﻿" + linhas.join("\r\n");
+  return "\uFEFF" + linhas.join("\r\n");
 }
 

@@ -33,6 +33,14 @@ type DbEvento = Database["public"]["Tables"]["encomenda_eventos"]["Row"];
 type DbPerfil = Database["public"]["Tables"]["perfis"]["Row"];
 type DbAgencia = Database["public"]["Tables"]["agencias"]["Row"];
 
+/**
+ * No app a cidade é identificada pelo slug ("manaus"), como no protótipo; no banco, pelo uuid.
+ * As consultas trazem o slug por join (`cidade:cidades(slug)`); sem o join, cai no uuid.
+ */
+export function slugDaCidade(row: { cidade_id: string; cidade?: { slug?: string | null } | null }) {
+  return row.cidade?.slug ?? row.cidade_id;
+}
+
 export function mapCidade(row: DbCidade): Cidade {
   return {
     id: row.slug || row.id,
@@ -45,7 +53,7 @@ export function mapCidade(row: DbCidade): Cidade {
 export function mapPorto(row: DbPorto): Porto {
   return {
     id: row.id,
-    cidadeId: row.cidade_id,
+    cidadeId: slugDaCidade(row),
     nome: row.nome,
     endereco: row.endereco || "",
     taxaEmbarque: Number(row.taxa_embarque),
@@ -110,7 +118,8 @@ export function mapLinha(
       minutosDesdeOrigem: p.minutos_desde_origem,
     })),
     tarifas: matrizTarifas,
-    horarios: horarios.map((h) => ({
+    // Só a programação vigente: horários desativados ficam no banco como histórico
+    horarios: horarios.filter((h) => h.ativo).map((h) => ({
       diaSemana: h.dia_semana,
       horaSaida: h.hora_saida.slice(0, 5),
       embarcacaoId: h.embarcacao_id,
@@ -165,6 +174,7 @@ export function mapPedido(
     total: Number(row.total),
     comissaoAgencia: Number(row.comissao_agencia),
     expiraEm: row.expira_em || undefined,
+    pagamentoInformadoEm: (row as { pagamento_informado_em?: string | null }).pagamento_informado_em || undefined,
     createdAt: row.created_at,
     pagamentos: pagamentos.map(mapPagamento),
   };
@@ -201,8 +211,8 @@ export function mapEncomenda(
     id: row.id,
     codigo: row.codigo,
     viagemId: row.viagem_id || undefined,
-    origemCidadeId: row.origem_cidade_id,
-    destinoCidadeId: row.destino_cidade_id,
+    origemCidadeId: (row as { origem?: { slug?: string | null } | null }).origem?.slug ?? row.origem_cidade_id,
+    destinoCidadeId: (row as { destino?: { slug?: string | null } | null }).destino?.slug ?? row.destino_cidade_id,
     remetenteNome: row.remetente_nome,
     remetenteDoc: row.remetente_doc,
     remetenteTel: row.remetente_tel,
@@ -251,7 +261,7 @@ export function mapAgencia(row: DbAgencia): Agencia {
     id: row.id,
     empresaId: row.empresa_id,
     nome: row.nome,
-    cidadeId: row.cidade_id,
+    cidadeId: slugDaCidade(row),
     comissaoPercentual: Number(row.comissao_percentual),
     ativa: row.ativa,
   };

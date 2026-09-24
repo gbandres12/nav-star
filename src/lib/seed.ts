@@ -256,12 +256,12 @@ export function seed(now = new Date()): Db {
 
   const linhas: Linha[] = [
     montaLinha("manaus-santarem", "Manaus → Santarém", ordemRio, [0, 240, 520, 700, 880, 1020], [
+      // Programação real: sai de Manaus segunda às 03:00
       { diaSemana: 1, horaSaida: "03:00", embarcacaoId: "sao-tome-expresso" },
-      { diaSemana: 5, horaSaida: "03:00", embarcacaoId: "sao-tome-expresso" },
     ]),
     montaLinha("santarem-manaus", "Santarém → Manaus", [...ordemRio].reverse(), [0, 210, 390, 600, 1020, 1320], [
-      { diaSemana: 3, horaSaida: "06:00", embarcacaoId: "sao-tome-expresso" },
-      { diaSemana: 6, horaSaida: "06:00", embarcacaoId: "sao-tome-expresso" },
+      // Programação real: volta saindo de Santarém quarta às 03:00
+      { diaSemana: 3, horaSaida: "03:00", embarcacaoId: "sao-tome-expresso" },
     ]),
     // Linha curta com lancha de assento livre
     {

@@ -1,7 +1,7 @@
 import { QR } from "./qr";
 import { addMinutes, date, dateTime, duration, label, money, time } from "@/lib/format";
-import { cidade, comodosDaEmbarcacao, config, convenio, EMPRESA, embarcacao, horarioParada, linha, porto, viagem } from "@/lib/store";
-import type { Passagem, Pedido } from "@/lib/types";
+import type { PassagemPublica, PedidoPublico } from "@/lib/data/pedidos";
+import type { Configuracao } from "@/lib/types";
 
 // "03:00" → "03h00", como no modelo impresso
 const hora = (d: Date) => time(d).replace(":", "h");
@@ -9,28 +9,29 @@ const hora = (d: Date) => time(d).replace(":", "h");
 /**
  * Cartão de embarque no layout do modelo da São Tomé Expresso.
  * Largura de bobina térmica de 80 mm; na tela aparece como um "cupom".
+ * Os dados vêm de pedido_publico (documento já mascarado).
  */
-export function BilheteTermico({ passagem: p, pedido }: { passagem: Passagem; pedido: Pedido }) {
-  const v = viagem(p.viagemId)!;
-  const l = linha(v.linhaId);
-  const portoO = porto(l.paradas[p.origemOrdem].portoId);
-  const portoD = porto(l.paradas[p.destinoOrdem].portoId);
-  const o = cidade(portoO.cidadeId);
-  const d = cidade(portoD.cidadeId);
-  const saida = horarioParada(v, p.origemOrdem);
-  const chegada = horarioParada(v, p.destinoOrdem);
-  const e = embarcacao(v.embarcacaoId);
-  const assento = e.assentos.find((a) => a.id === p.assentoId);
-  const comodo = comodosDaEmbarcacao(e.id).find((c) => c.id === assento?.comodoId);
-  const conv = convenio(p.convenioId);
-  const pagamento = pedido.pagamentos[0];
-  const cfg = config().bilhete;
-  const segundaVia = p.impressoes > 0;
+export function BilheteTermico({
+  passagem: p,
+  pedido,
+  config,
+  impressoes = 0,
+}: {
+  passagem: PassagemPublica;
+  pedido: PedidoPublico;
+  config: Configuracao;
+  impressoes?: number;
+}) {
+  const saida = new Date(p.saida);
+  const temAssento = p.assento !== "COLO";
+  const cfg = config.bilhete;
+  const EMPRESA = config.empresa;
+  const segundaVia = impressoes > 0;
 
   return (
     <article className={`bilhete ${cfg.larguraMm === 58 ? "bilhete-58" : ""} relative mx-auto w-[80mm] bg-white px-[4mm] pt-[3mm] pb-[3mm] font-[Arial,Helvetica,sans-serif] text-black`}>
       {segundaVia && (
-        <p className="absolute top-[4mm] right-[5mm] rotate-6 rounded border-2 border-black px-1 text-[10px] font-extrabold">{p.impressoes + 1}ª VIA</p>
+        <p className="absolute top-[4mm] right-[5mm] rotate-6 rounded border-2 border-black px-1 text-[10px] font-extrabold">{impressoes + 1}ª VIA</p>
       )}
       {/* Cabeçalho */}
       <header className="overflow-hidden border border-rio-600 text-center">
@@ -43,7 +44,7 @@ export function BilheteTermico({ passagem: p, pedido }: { passagem: Passagem; pe
         <div className="bg-rio-700 px-2 py-[2mm] text-white">
           <p className="text-[13px] font-bold tracking-wide">{cfg.titulo}</p>
           <p className="mt-0.5 text-[9.5px] font-bold">Pedido #{pedido.numero}</p>
-          <p className="text-[8.5px] font-bold">Emitido em {dateTime(pagamento.pagoEm ?? pedido.createdAt)}</p>
+          <p className="text-[8.5px] font-bold">Emitido em {dateTime(pedido.pagamento.pagoEm ?? pedido.createdAt)}</p>
         </div>
       </header>
 
@@ -51,20 +52,18 @@ export function BilheteTermico({ passagem: p, pedido }: { passagem: Passagem; pe
 
       {/* Trecho */}
       <section className="py-[1mm] text-center">
-        <p className="text-[32px] leading-none font-extrabold">{o.sigla}</p>
-        <p className="mt-1 text-[9px] font-bold">{o.nome.toUpperCase()} / {o.uf}</p>
+        <p className="text-[32px] leading-none font-extrabold">{p.origemSigla}</p>
+        <p className="mt-1 text-[9px] font-bold">{p.origemCidade.toUpperCase()} / {p.origemUf}</p>
         <p className="my-0.5 text-[13px] leading-none">↓</p>
-        <p className="text-[32px] leading-none font-extrabold">{d.sigla}</p>
-        <p className="mt-1 text-[9px] font-bold">{d.nome.toUpperCase()} / {d.uf}</p>
+        <p className="text-[32px] leading-none font-extrabold">{p.destinoSigla}</p>
+        <p className="mt-1 text-[9px] font-bold">{p.destinoCidade.toUpperCase()} / {p.destinoUf}</p>
       </section>
 
       <Rule />
 
       <section className="py-[1mm] text-center">
-        <p className="text-[9px] font-bold">{p.assentoId ? "POLTRONA" : "ASSENTO"}</p>
-        <p className="mt-0.5 text-[30px] leading-none font-extrabold">{p.assentoId ? (assento?.codigo ?? "—") : "LIVRE"}</p>
-        {!p.assentoId && <p className="mt-0.5 text-[8px] font-bold">EMBARQUE POR ORDEM DE CHEGADA</p>}
-        {comodo && comodo.acrescimo > 0 && <p className="mt-0.5 text-[9px] font-bold">{comodo.nome.toUpperCase()}</p>}
+        <p className="text-[9px] font-bold">{temAssento ? "POLTRONA" : "CRIANÇA DE COLO"}</p>
+        <p className="mt-0.5 text-[30px] leading-none font-extrabold">{temAssento ? p.assento : "—"}</p>
       </section>
 
       <Dashed />
@@ -76,7 +75,6 @@ export function BilheteTermico({ passagem: p, pedido }: { passagem: Passagem; pe
           Doc. {p.documento}
           {p.tipo !== "INTEIRA" && ` · ${label(p.tipo).toUpperCase()}`}
         </p>
-        {conv && <p className="mt-0.5 text-[8px] font-bold">CONVÊNIO: {conv.nome.toUpperCase()}</p>}
         <p className="mt-1 text-[6.5px] font-bold">{EMPRESA.razaoSocial.toUpperCase()}</p>
       </section>
 
@@ -86,7 +84,7 @@ export function BilheteTermico({ passagem: p, pedido }: { passagem: Passagem; pe
         items={[
           ["DATA", date(saida)],
           ["HORA", hora(saida)],
-          ["DURAÇÃO", duration((chegada.getTime() - saida.getTime()) / 60_000).replace(/h$/, "h00")],
+          ["DURAÇÃO", duration(p.duracaoMin).replace(/h$/, "h00")],
         ]}
       />
 
@@ -107,8 +105,8 @@ export function BilheteTermico({ passagem: p, pedido }: { passagem: Passagem; pe
 
       <Grid
         items={[
-          ["PAGAMENTO", label(pagamento.metodo).replace("Cartão de ", "Cartão ").toUpperCase()],
-          ["RESERVA", v.id.replace(/\D/g, "")],
+          ["PAGAMENTO", label(pedido.pagamento.metodo).replace("Cartão de ", "Cartão ").toUpperCase()],
+          ["PEDIDO", pedido.numero.split("-").pop() ?? pedido.numero],
           ["EMBARQUE", hora(addMinutes(saida, -cfg.antecedenciaEmbarqueMin))],
         ]}
       />
@@ -123,8 +121,8 @@ export function BilheteTermico({ passagem: p, pedido }: { passagem: Passagem; pe
       <div className="mt-[1.5mm] border-t-[1.5px] border-black" />
 
       <section className="py-[1mm] text-center">
-        <p className="text-[10.5px] font-bold">{portoO.nome.toUpperCase()}</p>
-        <p className="mt-0.5 text-[13px] font-extrabold">{e.nome.toUpperCase()}</p>
+        <p className="text-[10.5px] font-bold">{p.portoEmbarque.toUpperCase()}</p>
+        <p className="mt-0.5 text-[13px] font-extrabold">{p.embarcacao.toUpperCase()}</p>
       </section>
 
       {/* QR para validação no portão — não existe no modelo em papel, é o que liga o bilhete ao sistema */}

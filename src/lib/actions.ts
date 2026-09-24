@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { exigirPapel } from "./sessao";
-import { criarPedidoSite, criarPedidoBalcao, confirmarPagamento, validarEmbarque } from "./data/pedidos";
+import { criarPedidoSite, criarPedidoBalcao, confirmarPagamento, informarPagamento, validarEmbarque } from "./data/pedidos";
 import { criarEncomenda, avancarEncomenda } from "./data/encomendas";
 import { rotuloAssento, type NovoPedidoInput } from "./store";
 
@@ -28,9 +28,12 @@ export async function finalizarCompra(input: NovoPedidoInput): Promise<CheckoutS
     passageiros: input.passageiros
   };
 
-  const r = input.canal === "SITE" 
-    ? await criarPedidoSite(payload)
-    : await criarPedidoBalcao({ ...payload, passageiros: input.passageiros });
+  const criar = () => (input.canal === "SITE" ? criarPedidoSite(payload) : criarPedidoBalcao(payload));
+  // Duas vendas simultâneas sem poltrona escolhida podem tentar a mesma poltrona livre; a trava do banco recusa uma
+  // delas ("acabou de ser vendido"). Nesse caso tenta de novo: o banco escolhe a próxima livre.
+  const semEscolha = input.passageiros.every((x) => !x.assentoId);
+  let r = await criar();
+  for (let i = 0; i < 2 && !r.ok && semEscolha && r.erro.includes("acabou de ser vendido"); i++) r = await criar();
 
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
@@ -41,10 +44,31 @@ export async function finalizarCompra(input: NovoPedidoInput): Promise<CheckoutS
   redirect(input.pagoNoAto ? `/bilhete/${c}?imprimir=1&voltar=/admin/pedidos/${c}` : `/admin/pedidos/${c}`);
 }
 
+/** Só para testes locais: em produção não faz nada (confirmar pagamento é do painel ou do gateway) */
 export async function simularPagamento(codigo: string) {
+  if (process.env.NODE_ENV === "production" || process.env.PAGAMENTO_SIMULADO !== "true") return;
   await confirmarPagamento(codigo);
   revalidatePath(`/pedido/${codigo}`);
   revalidatePath("/admin", "layout");
+}
+
+/** Cliente clicou em "Já paguei": segura as poltronas até a equipe conferir o PIX */
+export async function informarPagamentoAction(codigo: string): Promise<{ erro?: string }> {
+  const r = await informarPagamento(codigo);
+  revalidatePath(`/pedido/${codigo}`);
+  revalidatePath("/admin/pedidos", "layout");
+  return r.ok ? {} : { erro: r.erro };
+}
+
+/** Conferência manual do PIX no painel */
+export async function confirmarPagamentoAction(codigo: string): Promise<{ erro?: string; ok?: string }> {
+  const a = await exigirPapel("ADMIN", "GERENTE");
+  if (a.erro) return { erro: a.erro };
+  const r = await confirmarPagamento(codigo);
+  if (!r.ok) return { erro: r.erro };
+  revalidatePath(`/pedido/${codigo}`);
+  revalidatePath("/admin", "layout");
+  return { ok: "Pagamento confirmado. Os bilhetes foram emitidos." };
 }
 
 export type EmbarqueState =

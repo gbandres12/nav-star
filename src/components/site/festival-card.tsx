@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, MapPin, PartyPopper } from "lucide-react";
 import { date } from "@/lib/format";
@@ -16,16 +17,25 @@ export const periodoFestival = (f: Festival) =>
 
 export function FestivalCard({ f, cidade, aPartirDe }: { f: Festival; cidade: string; aPartirDe?: string }) {
   const c = COR_FESTIVAL[f.cor];
+  const capa = f.fotos?.[0];
   return (
-    <Link href={`/festivais/${f.slug}`} className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${c.fundo} p-6 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl`}>
-      <PartyPopper className="absolute -right-4 -bottom-4 h-28 w-28 opacity-15" aria-hidden />
-      <p className={`flex items-center gap-3 text-xs font-semibold ${c.texto}`}>
+    <Link href={`/festivais/${f.slug}`} className={`group relative isolate overflow-hidden rounded-2xl bg-gradient-to-br ${c.fundo} p-6 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl ${capa ? "flex min-h-64 flex-col justify-end" : ""}`}>
+      {capa ? (
+        <>
+          <Image src={capa.url} alt="" fill sizes="(min-width: 768px) 560px, 100vw" className="-z-10 object-cover transition duration-500 group-hover:scale-105" />
+          {/* Escurece a foto para o texto branco continuar legível */}
+          <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/45 to-black/20" aria-hidden />
+        </>
+      ) : (
+        <PartyPopper className="absolute -right-4 -bottom-4 h-28 w-28 opacity-15" aria-hidden />
+      )}
+      <p className={`flex items-center gap-3 text-xs font-semibold ${capa ? "text-white/90" : c.texto}`}>
         <span className="flex items-center gap-1"><CalendarDays size={14} /> {periodoFestival(f)}</span>
         <span className="flex items-center gap-1"><MapPin size={14} /> {cidade}</span>
       </p>
       <h3 className="mt-3 text-2xl font-extrabold tracking-tight">{f.nome}</h3>
-      {f.chamada && <p className={`mt-1 ${c.texto}`}>{f.chamada}</p>}
-      <p className="mt-5 inline-flex items-center gap-1 rounded-lg bg-white/15 px-3 py-2 text-sm font-semibold backdrop-blur group-hover:bg-white/25">
+      {f.chamada && <p className={`mt-1 ${capa ? "text-white/90" : c.texto}`}>{f.chamada}</p>}
+      <p className="mt-5 inline-flex w-fit items-center gap-1 rounded-lg bg-white/15 px-3 py-2 text-sm font-semibold backdrop-blur group-hover:bg-white/25">
         {aPartirDe ? `Passagens a partir de ${aPartirDe}` : "Ver viagens"} <ArrowRight size={16} />
       </p>
     </Link>

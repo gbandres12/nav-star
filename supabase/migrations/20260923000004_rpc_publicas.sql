@@ -119,6 +119,22 @@ $$;
 -- ------------------------------------------------------------------------------
 -- 3. Função Privada Núcleo de Criação de Pedidos
 -- ------------------------------------------------------------------------------
+do $$
+begin
+  create type private.t_passagem_item as (
+    nome text,
+    documento text,
+    telefone text,
+    tipo public.tipo_passageiro,
+    assento_id uuid,
+    valor numeric(10,2),
+    taxa numeric(10,2)
+  );
+exception
+  when duplicate_object then null;
+end;
+$$;
+
 create or replace function private.criar_pedido(
   payload jsonb,
   p_canal public.canal_venda,
@@ -177,17 +193,8 @@ declare
   v_assento_check uuid;
   i integer;
 
-  type t_passagem_item is record (
-    nome text,
-    documento text,
-    telefone text,
-    tipo public.tipo_passageiro,
-    assento_id uuid,
-    valor numeric(10,2),
-    taxa numeric(10,2)
-  );
-  v_itens t_passagem_item[];
-  v_item t_passagem_item;
+  v_itens private.t_passagem_item[];
+  v_item private.t_passagem_item;
 begin
   -- 1. Validação dos dados essenciais do payload
   v_viagem_id := coalesce(
@@ -595,49 +602,43 @@ end;
 $$;
 
 -- ------------------------------------------------------------------------------
--- 4. RPC Pública: criar_pedido_site
---    Encaminha compra do e-commerce com canal 'SITE'
--- ------------------------------------------------------------------------------
-create or replace function public.criar_pedido_site(payload jsonb)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
+CREATE OR REPLACE FUNCTION public.assentos_ocupados(viagem_id uuid, origem integer, destino integer)
+ RETURNS uuid[]
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_ocupados uuid[];
 begin
-  return private.criar_pedido(
-    payload        => payload,
-    p_canal        => 'SITE'::public.canal_venda,
-    p_vendedor_id  => null,
-    p_agencia_id   => null,
-    p_pago_no_ato  => false
-  );
-end;
-$$;
+  perform private.expirar_pedidos();
 
--- ------------------------------------------------------------------------------
--- 5. RPC Pública: buscar_viagens
---    Retorna lista de viagens com lugares livres calculados por trecho
--- ------------------------------------------------------------------------------
-create or replace function public.buscar_viagens(
-  origem_slug text,
-  destino_slug text,
-  dia date default null
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
+  select coalesce(array_agg(distinct p.assento_id), array[]::uuid[])
+  into v_ocupados
+  from public.passagens p
+  where p.viagem_id = assentos_ocupados.viagem_id
+    and p.assento_id is not null
+    and p.status in ('RESERVADA', 'EMITIDA', 'EMBARCADA')
+    and p.trecho && int4range(assentos_ocupados.origem, assentos_ocupados.destino);
+
+  return v_ocupados;
+end;
+$function$
+
+
+CREATE OR REPLACE FUNCTION public.buscar_viagens(origem_slug text, destino_slug text, dia date DEFAULT NULL::date)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
 declare
   v_origem_cidade_id uuid;
   v_destino_cidade_id uuid;
   v_resultado jsonb;
 begin
-  -- Libera pedidos expirados antes de calcular disponibilidade
   perform private.expirar_pedidos();
 
-  -- Identificação das cidades por slug ou id
   select id into v_origem_cidade_id
   from public.cidades
   where slug = buscar_viagens.origem_slug or id::text = buscar_viagens.origem_slug
@@ -770,57 +771,39 @@ begin
 
   return v_resultado;
 end;
-$$;
+$function$
 
--- ------------------------------------------------------------------------------
--- 6. RPC Pública: assentos_ocupados
---    Retorna array com UUIDs dos assentos indisponíveis no trecho
--- ------------------------------------------------------------------------------
-create or replace function public.assentos_ocupados(
-  viagem_id uuid,
-  origem integer,
-  destino integer
-)
-returns uuid[]
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_ocupados uuid[];
+
+CREATE OR REPLACE FUNCTION public.criar_pedido_site(payload jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
 begin
-  -- Libera reservas expiradas antes de consultar ocupação
-  perform private.expirar_pedidos();
-
-  select coalesce(array_agg(distinct p.assento_id), array[]::uuid[])
-  into v_ocupados
-  from public.passagens p
-  where p.viagem_id = assentos_ocupados.viagem_id
-    and p.assento_id is not null
-    and p.status in ('RESERVADA', 'EMITIDA', 'EMBARCADA')
-    and p.trecho && int4range(assentos_ocupados.origem, assentos_ocupados.destino);
-
-  return v_ocupados;
+  return private.criar_pedido(
+    payload        => payload,
+    p_canal        => 'SITE'::public.canal_venda,
+    p_vendedor_id  => null,
+    p_agencia_id   => null,
+    p_pago_no_ato  => false
+  );
 end;
-$$;
+$function$
 
--- ------------------------------------------------------------------------------
--- 7. RPC Pública: pedido_publico
---    Consulta de pedido para /pedido/[codigo] e bilhetes impressos
--- ------------------------------------------------------------------------------
-create or replace function public.pedido_publico(codigo text)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
+
+CREATE OR REPLACE FUNCTION public.pedido_publico(codigo text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
 declare
   v_pedido record;
   v_passagens jsonb;
   v_pagamentos jsonb;
   v_pagamento_principal jsonb;
 begin
-  -- Atualiza status de pedidos expirados antes da leitura
   perform private.expirar_pedidos();
 
   select
@@ -847,7 +830,6 @@ begin
     return null;
   end if;
 
-  -- Lista de passagens com documento mascarado e dados de embarque
   select coalesce(
     jsonb_agg(
       jsonb_build_object(
@@ -908,7 +890,6 @@ begin
   left join public.assentos a on a.id = pas.assento_id
   where pas.pedido_id = v_pedido.id;
 
-  -- Lista de pagamentos
   select coalesce(
     jsonb_agg(
       jsonb_build_object(
@@ -955,18 +936,15 @@ begin
     'passagens', v_passagens
   );
 end;
-$$;
+$function$
 
--- ------------------------------------------------------------------------------
--- 8. RPC Pública: rastrear_encomenda
---    Rastreamento público seguro sem vazamento de dados pessoais
--- ------------------------------------------------------------------------------
-create or replace function public.rastrear_encomenda(codigo text)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
+
+CREATE OR REPLACE FUNCTION public.rastrear_encomenda(codigo text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
 declare
   v_encomenda record;
   v_eventos jsonb;
@@ -1032,9 +1010,9 @@ begin
     'eventos', v_eventos
   );
 end;
-$$;
+$function$
 
--- ------------------------------------------------------------------------------
+
 -- 9. Grants de Execução Explícitos
 -- ------------------------------------------------------------------------------
 grant execute on function public.criar_pedido_site(jsonb) to anon, authenticated;

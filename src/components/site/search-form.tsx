@@ -11,9 +11,15 @@ type Props = {
   data?: string;
   hoje: string;
   compact?: boolean;
+  datasDisponiveis?: string[];
 };
 
-export function SearchForm({ cidades, origem = "manaus", destino = "parintins", data = "", hoje, compact }: Props) {
+const fmtDia = new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+function rotularData(dia: string) {
+  return fmtDia.format(new Date(`${dia}T12:00:00Z`));
+}
+
+export function SearchForm({ cidades, origem = "manaus", destino = "parintins", data = "", hoje, compact, datasDisponiveis }: Props) {
   const [o, setO] = useState(origem);
   const [d, setD] = useState(destino);
 
@@ -53,10 +59,19 @@ export function SearchForm({ cidades, origem = "manaus", destino = "parintins", 
         </div>
       </div>
       <div>
-        <label className="label">Data (opcional)</label>
+        <label className="label">Data</label>
         <div className="relative">
           <CalendarDays size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
-          <input type="date" name="data" defaultValue={data} min={hoje} className="input pl-9" />
+          {datasDisponiveis ? (
+            <select name="data" defaultValue={data} className="input appearance-none pl-9">
+              <option value="">Qualquer data</option>
+              {datasDisponiveis.map((dia) => (
+                <option key={dia} value={dia}>{rotularData(dia)}</option>
+              ))}
+            </select>
+          ) : (
+            <input type="date" name="data" defaultValue={data} min={hoje} className="input pl-9" />
+          )}
         </div>
       </div>
       <button type="submit" className="btn-sol h-[42px] px-6">

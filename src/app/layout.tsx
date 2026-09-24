@@ -5,6 +5,7 @@ import "./globals.css";
 const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://sistema.saotomeexpresso.com"),
   title: { default: "São Tomé Expresso — Passagens de lancha", template: "%s · São Tomé Expresso" },
   description: "Compre passagens de lancha Manaus ↔ Santarém online. Itacoatiara, Parintins, Juruti e Óbidos.",
 };

@@ -7,7 +7,7 @@ import { Empty, PageHeader, Stat } from "@/components/ui";
 import { date, dateTime } from "@/lib/format";
 import { formatar, gerarRelatorio, lerFiltros, qsFiltros } from "@/lib/relatorios";
 import { garantirAcesso } from "@/lib/sessao";
-import { db, EMPRESA } from "@/lib/store";
+import { buscarBaseDeDadosParaRelatorios } from "@/lib/data/relatorios";
 
 export const metadata = { title: "Relatório" };
 
@@ -15,8 +15,15 @@ export default async function RelatorioPage({ params, searchParams }: PageProps<
   await garantirAcesso("/admin/relatorios");
   const { tipo } = await params;
   const f = lerFiltros(await searchParams);
-  const r = gerarRelatorio(tipo, f);
+  const r = await gerarRelatorio(tipo, f);
   if (!r) notFound();
+  
+  const db = await buscarBaseDeDadosParaRelatorios(f);
+  const config = db.config;
+  const allLinhas = db.linhas;
+  const allEmbarcacoes = db.embarcacoes;
+  const allUsuarios = db.usuarios;
+  
   const direita = (t?: string) => (t && t !== "texto" ? "text-right tabular-nums" : "");
   const qs = qsFiltros(f);
 
@@ -34,7 +41,7 @@ export default async function RelatorioPage({ params, searchParams }: PageProps<
         }
       />
       <p className="mb-4 hidden text-sm print:block">
-        {EMPRESA.nome} · Período {date(f.de + "T12:00:00Z")} a {date(f.ate + "T12:00:00Z")} · Emitido em {dateTime(new Date())}
+        {config.empresa.nome} · Período {date(f.de + "T12:00:00Z")} a {date(f.ate + "T12:00:00Z")} · Emitido em {dateTime(new Date())}
       </p>
 
       <form className="no-print card mb-6 grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
@@ -54,7 +61,7 @@ export default async function RelatorioPage({ params, searchParams }: PageProps<
             <label className="label">Linha</label>
             <select name="linha" defaultValue={f.linhaId} className="input">
               <option value="">Todas</option>
-              {db().linhas.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+              {allLinhas.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
             </select>
           </div>
         )}
@@ -63,7 +70,7 @@ export default async function RelatorioPage({ params, searchParams }: PageProps<
             <label className="label">Embarcação</label>
             <select name="embarcacao" defaultValue={f.embarcacaoId} className="input">
               <option value="">Todas</option>
-              {db().embarcacoes.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              {allEmbarcacoes.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
             </select>
           </div>
         )}
@@ -72,7 +79,7 @@ export default async function RelatorioPage({ params, searchParams }: PageProps<
             <label className="label">Usuário</label>
             <select name="usuario" defaultValue={f.usuarioId} className="input">
               <option value="">Todos</option>
-              {db().usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              {allUsuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
             </select>
           </div>
         )}

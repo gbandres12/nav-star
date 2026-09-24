@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { Mensagem } from "./action-form";
-import { salvarHorariosAction, salvarLinhaAction, type Estado } from "@/lib/admin-actions";
+import type { Estado } from "@/lib/admin-actions";
+import { salvarHorariosAction, salvarLinhaAction } from "@/lib/precos-actions";
 
 type PortoOpcao = { id: string; nome: string; cidade: string };
 type Parada = { portoId: string; h: number; m: number };

@@ -2,9 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { ArrowRight, CreditCard, Loader2, QrCode, Banknote, Plus, Trash2, TriangleAlert, Armchair, Sparkles } from "lucide-react";
+import { QR } from "./qr";
 import { SeatMap } from "./seat-map";
 import { finalizarCompra } from "@/lib/actions";
 import { money } from "@/lib/format";
+import { brCodePix, type RecebedorPix } from "@/lib/pix";
 import type { Assento, CanalVenda, MetodoPagamento, TipoPassageiro } from "@/lib/types";
 
 const TIPOS: { v: TipoPassageiro; l: string }[] = [
@@ -13,7 +15,10 @@ const TIPOS: { v: TipoPassageiro; l: string }[] = [
   { v: "IDOSO", l: "Idoso 60+" },
   { v: "ESTUDANTE", l: "Estudante" },
   { v: "PCD", l: "PCD" },
+  { v: "COLO", l: "Criança de colo (até 2 anos)" },
 ];
+// Criança de colo: não ocupa poltrona nem paga taxa de embarque, mas conta na lotação da lancha
+const ehColo = (x: { tipo: TipoPassageiro }) => x.tipo === "COLO";
 const rotuloDesconto = (d: number) => (d >= 1 ? " (gratuidade)" : d > 0 ? ` (${Math.round(d * 100)}%)` : "");
 
 export type ConvenioOpcao = { id: string; nome: string; descontoPercentual: number; faturado: boolean };
@@ -37,6 +42,8 @@ type Props = {
   livresSemAcrescimo: number; // poltronas livres sem acréscimo de cômodo no trecho
   livres: number; // lugares livres no trecho
   assentoLivre?: boolean; // embarcação sem poltrona numerada
+  pix?: RecebedorPix | null; // balcão: QR com o total para o cliente pagar antes da emissão
+  minutosReserva?: number; // site: tempo para pagar
 };
 
 type Pax = { key: number; assentoId?: string; nome: string; documento: string; tipo: TipoPassageiro };
@@ -77,7 +84,7 @@ export function BookingFlow(p: Props) {
     setErro(undefined);
     const dono = pax.find((x) => x.assentoId === id);
     if (dono) return editar(dono.key, { assentoId: undefined });
-    const semPoltrona = pax.find((x) => !x.assentoId);
+    const semPoltrona = pax.find((x) => !x.assentoId && !ehColo(x));
     if (semPoltrona) return editar(semPoltrona.key, { assentoId: id });
     if (pax.length >= max) return setErro(`Máximo de ${max} passageiros por compra.`);
     setPax([...pax, novoPax(id)]);
@@ -89,17 +96,18 @@ export function BookingFlow(p: Props) {
   const itens = pax.map((x) => {
     const acrescimo = modo === "mapa" && x.assentoId ? (p.acrescimos[x.assentoId] ?? 0) : 0;
     const desc = Math.min(1, Math.max(p.descontos[x.tipo] ?? 0, (conv?.descontoPercentual ?? 0) / 100));
-    return { key: x.key, assentoId: modo === "mapa" ? x.assentoId : undefined, valor: Math.round((p.valor + acrescimo) * (1 - desc) * 100) / 100, acrescimo };
+    return { key: x.key, colo: ehColo(x), assentoId: modo === "mapa" ? x.assentoId : undefined, valor: Math.round((p.valor + acrescimo) * (1 - desc) * 100) / 100, acrescimo };
   });
   const subtotal = itens.reduce((s, i) => s + i.valor, 0);
-  const taxas = p.taxa * pax.length;
+  const taxas = p.taxa * pax.filter((x) => !ehColo(x)).length;
   const total = subtotal + taxas;
   const podeTerAcrescimo = modo === "auto" && pax.length > p.livresSemAcrescimo;
 
   function submit() {
     setErro(undefined);
     if (!pax.length) return setErro("Adicione pelo menos um passageiro.");
-    if (modo === "mapa" && pax.some((x) => !x.assentoId)) return setErro("Escolha uma poltrona no mapa para cada passageiro, ou use “Sem escolher poltrona”.");
+    if (pax.filter(ehColo).length > pax.filter((x) => !ehColo(x)).length) return setErro("Cada criança de colo precisa de um adulto com poltrona no mesmo pedido.");
+    if (modo === "mapa" && pax.some((x) => !x.assentoId && !ehColo(x))) return setErro("Escolha uma poltrona no mapa para cada passageiro, ou use “Sem escolher poltrona”.");
     const faltando = pax.some((x) => x.nome.trim().length < 3 || x.documento.replace(/\D/g, "").length < 5);
     if (faltando) return setErro("Preencha nome completo e documento de cada passageiro.");
     if (!balcao && (comprador.nome.trim().length < 3 || comprador.telefone.replace(/\D/g, "").length < 10))
@@ -111,13 +119,14 @@ export function BookingFlow(p: Props) {
         destinoOrdem: p.destinoOrdem,
         canal: p.canal,
         vendedorId: p.vendedorId,
-        pagoNoAto: balcao && metodo !== "PIX",
+        // No balcão a venda sai paga: o PIX é conferido na tela antes de confirmar
+        pagoNoAto: balcao,
         metodo: conv?.faturado ? "FATURADO" : metodo,
         convenioId: convenioId || undefined,
         comprador: balcao
           ? { nome: comprador.nome || pax[0].nome, telefone: comprador.telefone || "-", email: comprador.email }
           : comprador,
-        passageiros: pax.map(({ assentoId, nome, documento, tipo }) => ({ assentoId: modo === "mapa" ? assentoId : undefined, nome, documento, tipo })),
+        passageiros: pax.map(({ assentoId, nome, documento, tipo }) => ({ assentoId: modo === "mapa" && tipo !== "COLO" ? assentoId : undefined, nome, documento, tipo })),
       });
       if (r?.erro) setErro(r.erro);
     });
@@ -131,7 +140,7 @@ export function BookingFlow(p: Props) {
         { v: "CARTAO_CREDITO", l: "Crédito", icon: <CreditCard size={18} />, hint: "Maquininha" },
       ]
     : [
-        { v: "PIX", l: "PIX", icon: <QrCode size={18} />, hint: "Aprovação na hora" },
+        { v: "PIX", l: "PIX", icon: <QrCode size={18} />, hint: "QR Code com o valor exato" },
         { v: "CARTAO_CREDITO", l: "Cartão de crédito", icon: <CreditCard size={18} />, hint: "Em breve" },
       ];
 
@@ -191,8 +200,12 @@ export function BookingFlow(p: Props) {
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-sm font-semibold text-slate-800">
                     Passageiro {i + 1}
-                    {modo === "mapa" && (
-                      <span className={x.assentoId ? "text-rio-700" : "text-amber-700"}> · {x.assentoId ? `Poltrona ${codigo.get(x.assentoId)}` : "escolha a poltrona no mapa"}</span>
+                    {ehColo(x) ? (
+                      <span className="text-slate-500"> · no colo de um adulto, sem poltrona</span>
+                    ) : (
+                      modo === "mapa" && (
+                        <span className={x.assentoId ? "text-rio-700" : "text-amber-700"}> · {x.assentoId ? `Poltrona ${codigo.get(x.assentoId)}` : "escolha a poltrona no mapa"}</span>
+                      )
                     )}
                   </p>
                   {(pax.length > 1 || x.assentoId) && (
@@ -212,7 +225,11 @@ export function BookingFlow(p: Props) {
                   </div>
                   <div>
                     <label className="label" htmlFor={`tipo-${x.key}`}>Tipo</label>
-                    <select id={`tipo-${x.key}`} className="input" value={x.tipo} onChange={(e) => editar(x.key, { tipo: e.target.value as TipoPassageiro })}>
+                    <select id={`tipo-${x.key}`} className="input" value={x.tipo} onChange={(e) => {
+                        const tipo = e.target.value as TipoPassageiro;
+                        // Colo devolve a poltrona que o passageiro tinha no mapa
+                        editar(x.key, tipo === "COLO" ? { tipo, assentoId: undefined } : { tipo });
+                      }}>
                       {TIPOS.map((t) => (
                         <option key={t.v} value={t.v}>{t.l}{rotuloDesconto(p.descontos[t.v] ?? 0)}</option>
                       ))}
@@ -294,7 +311,7 @@ export function BookingFlow(p: Props) {
             {itens.map((i, n) => (
               <div key={i.key} className="flex justify-between">
                 <span className="text-slate-600">
-                  {i.assentoId ? `Poltrona ${codigo.get(i.assentoId)}` : `Passageiro ${n + 1}`}
+                  {i.colo ? `Criança de colo` : i.assentoId ? `Poltrona ${codigo.get(i.assentoId)}` : `Passageiro ${n + 1}`}
                   {i.assentoId && i.acrescimo > 0 && p.comodos?.[i.assentoId] && <span className="text-xs text-slate-400"> · {p.comodos[i.assentoId].nome}</span>}
                 </span>
                 <span className="font-medium tabular-nums">{money(i.valor)}</span>
@@ -316,13 +333,25 @@ export function BookingFlow(p: Props) {
                 {podeTerAcrescimo && " Restam poucas poltronas sem acréscimo: o valor final pode mudar e aparece antes do pagamento."}
               </p>
             )}
+            {balcao && metodo === "PIX" && !conv?.faturado && total > 0 && (
+              <div className="rounded-xl border border-slate-200 p-3 text-center">
+                {p.pix ? (
+                  <>
+                    <div className="mx-auto w-fit"><QR value={brCodePix(p.pix, { valor: total, txid: "BALCAO" })} size={168} /></div>
+                    <p className="mt-2 text-xs text-slate-600">Mostre ao cliente. Confirme a venda <strong>só depois de ver o PIX de {money(total)} recebido</strong>.</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-amber-800">Chave PIX não cadastrada (Configurações → Pagamento). Receba pela chave da empresa e confirme.</p>
+                )}
+              </div>
+            )}
             {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{erro}</p>}
             <button type="button" onClick={submit} disabled={pending} className={`${balcao ? "btn-primary" : "btn-sol"} mt-2 w-full py-3 text-base`}>
               {pending ? <Loader2 size={18} className="animate-spin" /> : null}
-              {balcao ? (conv?.faturado ? "Emitir (faturado)" : metodo === "PIX" ? "Gerar cobrança PIX" : "Confirmar venda") : "Ir para pagamento"}
+              {balcao ? (conv?.faturado ? "Emitir (faturado)" : metodo === "PIX" ? "PIX recebido — emitir" : "Confirmar venda") : "Ir para pagamento"}
               {!pending && <ArrowRight size={18} />}
             </button>
-            {!balcao && <p className="text-center text-xs text-slate-500">Poltronas reservadas por 30 min até a confirmação do pagamento.</p>}
+            {!balcao && <p className="text-center text-xs text-slate-500">Poltronas reservadas por {p.minutosReserva ?? 30} min para você pagar.</p>}
           </div>
         </div>
       </aside>

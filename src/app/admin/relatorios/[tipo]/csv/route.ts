@@ -9,7 +9,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/admin/relatorios
   if (!podeAcessar(op.papel, "/admin/relatorios")) return new Response("Sem permissão", { status: 403 });
   const { tipo } = await ctx.params;
   const f = lerFiltros(Object.fromEntries(req.nextUrl.searchParams));
-  const r = gerarRelatorio(tipo, f);
+  const r = await gerarRelatorio(tipo, f);
   if (!r) return new Response("Relatório não encontrado", { status: 404 });
   return new Response(paraCsv(r), {
     headers: {

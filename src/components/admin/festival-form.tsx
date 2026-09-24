@@ -1,5 +1,5 @@
 import { ActionForm, Campo, Checkbox } from "./action-form";
-import { salvarFestivalAction } from "@/lib/admin-actions";
+import { salvarFestivalAction } from "@/lib/festivais-actions";
 import type { Festival } from "@/lib/types";
 
 const CORES = [

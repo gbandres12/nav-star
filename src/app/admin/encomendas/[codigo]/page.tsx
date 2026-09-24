@@ -6,20 +6,28 @@ import { PrintButton } from "@/components/print-button";
 import { QR } from "@/components/qr";
 import { AvancarButton } from "@/components/admin/avancar-button";
 import { Badge } from "@/components/ui";
-import { cidade, encomendaPorCodigo, FLUXO_ENCOMENDA, linha, viagem } from "@/lib/store";
 import { dateShort, dateTime, label, money, time } from "@/lib/format";
+import { cidade, encomendaPorCodigo, linha, viagem } from "@/lib/data";
+import type { StatusEncomenda } from "@/lib/types";
 
 export const metadata = { title: "Encomenda" };
 
+const FLUXO_ENCOMENDA: StatusEncomenda[] = ["RECEBIDA", "EMBARCADA", "EM_TRANSITO", "DISPONIVEL_RETIRADA", "ENTREGUE"];
+
 export default async function EncomendaDetalhe({ params }: PageProps<"/admin/encomendas/[codigo]">) {
   const { codigo } = await params;
-  const e = encomendaPorCodigo(codigo);
+  const e = await encomendaPorCodigo(codigo);
   if (!e) notFound();
-  const v = e.viagemId ? viagem(e.viagemId) : undefined;
+  
+  const v = e.viagemId ? await viagem(e.viagemId) : undefined;
   const i = FLUXO_ENCOMENDA.indexOf(e.status);
   const proximo = i >= 0 && i < FLUXO_ENCOMENDA.length - 1 ? FLUXO_ENCOMENDA[i + 1] : undefined;
-  const o = cidade(e.origemCidadeId);
-  const d = cidade(e.destinoCidadeId);
+  
+  const o = await cidade(e.origemCidadeId);
+  const d = await cidade(e.destinoCidadeId);
+  if (!o || !d) notFound();
+
+  const l = v ? await linha(v.linhaId) : null;
 
   return (
     <>
@@ -66,7 +74,7 @@ export default async function EncomendaDetalhe({ params }: PageProps<"/admin/enc
               <p className="label">Viagem</p>
               {v ? (
                 <Link href={`/admin/viagens/${v.id}`} className="font-semibold text-rio-700 hover:underline">
-                  {linha(v.linhaId).nome} · {dateShort(v.partida)} {time(v.partida)}
+                  {l?.nome || "Linha"} · {dateShort(v.partida)} {time(v.partida)}
                 </Link>
               ) : (
                 <p className="text-sm text-slate-500">Ainda não vinculada</p>

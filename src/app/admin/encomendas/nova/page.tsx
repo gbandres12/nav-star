@@ -2,17 +2,25 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { EncomendaForm } from "@/components/admin/encomenda-form";
 import { PageHeader } from "@/components/ui";
-import { cidadesAtendidas, db, linha } from "@/lib/store";
 import { dateShort, time, weekday } from "@/lib/format";
+import { cidadesAtendidas, viagensAdmin, linhas } from "@/lib/data";
 
 export const metadata = { title: "Nova encomenda" };
 
-export default function NovaEncomenda() {
-  const agora = new Date();
-  const viagens = db()
-    .viagens.filter((v) => new Date(v.partida) > agora)
+export default async function NovaEncomenda() {
+  const c = await cidadesAtendidas();
+  const proximasViagens = await viagensAdmin({ aba: "proximas" });
+  const allLinhas = await linhas();
+
+  const viagens = proximasViagens
     .slice(0, 10)
-    .map((v) => ({ id: v.id, label: `${weekday(v.partida)} ${dateShort(v.partida)} ${time(v.partida)} · ${linha(v.linhaId).nome}` }));
+    .map((v) => {
+      const l = allLinhas.find(x => x.id === v.linhaId);
+      return { 
+        id: v.id, 
+        label: `${weekday(v.partida)} ${dateShort(v.partida)} ${time(v.partida)} · ${l?.nome || "Linha"}` 
+      };
+    });
 
   return (
     <>
@@ -20,7 +28,7 @@ export default function NovaEncomenda() {
         <ChevronLeft size={16} /> Encomendas
       </Link>
       <PageHeader title="Nova encomenda" subtitle="Registre a carga recebida no porto. O código de rastreio é gerado automaticamente." />
-      <EncomendaForm cidades={cidadesAtendidas()} viagens={viagens} />
+      <EncomendaForm cidades={c} viagens={viagens} />
     </>
   );
 }

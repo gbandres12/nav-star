@@ -1,4 +1,5 @@
 import "server-only";
+import { linkDeAcesso, origemDoSite } from "../site";
 import { cache } from "react";
 import { createClient } from "../supabase/server";
 import { createAdminClient } from "../supabase/admin";
@@ -113,7 +114,7 @@ export async function criarUsuarioComConvite(dados: {
   }
 
   const empresaId = currentPerfil.empresa_id;
-  const baseUrl = dados.origin || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const baseUrl = dados.origin || (await origemDoSite());
   const redirectTo = `${baseUrl}/primeiro-acesso`;
 
   // 1. Gera o link de convite / primeiro acesso no Supabase Auth
@@ -144,10 +145,10 @@ export async function criarUsuarioComConvite(dados: {
       email,
       options: { redirectTo },
     });
-    linkAtivacao = recData?.properties?.action_link;
+    linkAtivacao = recData?.properties?.hashed_token ? linkDeAcesso(baseUrl, recData.properties.hashed_token, "recovery") : undefined;
   } else {
     authUserId = linkData.user.id;
-    linkAtivacao = linkData.properties?.action_link;
+    linkAtivacao = linkData.properties?.hashed_token ? linkDeAcesso(baseUrl, linkData.properties.hashed_token, "invite") : undefined;
   }
 
   // 2. Insere/atualiza o perfil em public.perfis
@@ -276,7 +277,7 @@ export async function reenviarConvite(
     return { ok: false, erro: "Usuário de autenticação não encontrado." };
   }
 
-  const baseUrl = origin || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const baseUrl = origin || (await origemDoSite());
   const redirectTo = `${baseUrl}/primeiro-acesso`;
 
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
@@ -285,7 +286,7 @@ export async function reenviarConvite(
     options: { redirectTo },
   });
 
-  let linkAtivacao = linkData?.properties?.action_link;
+  let linkAtivacao = linkData?.properties?.hashed_token ? linkDeAcesso(baseUrl, linkData.properties.hashed_token, "invite") : undefined;
 
   if (linkError) {
     // Tenta recovery caso já tenha sido confirmado
@@ -297,7 +298,7 @@ export async function reenviarConvite(
     if (recError) {
       return { ok: false, erro: `Não foi possível gerar link: ${recError.message}` };
     }
-    linkAtivacao = recData?.properties?.action_link;
+    linkAtivacao = recData?.properties?.hashed_token ? linkDeAcesso(baseUrl, recData.properties.hashed_token, "recovery") : undefined;
   }
 
   await admin

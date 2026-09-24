@@ -14,6 +14,9 @@ import {
 } from "./map";
 import type { Agencia, Cidade, Embarcacao, Linha, Porto } from "../types";
 
+// A coluna id é uuid: comparar com um slug ("manaus") faz o Postgres recusar a consulta inteira
+const ehUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
 export const cidades = cache(async (): Promise<Cidade[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -29,7 +32,7 @@ export const cidade = cache(async (idOrSlug: string): Promise<Cidade | null> => 
   const { data } = await supabase
     .from("cidades")
     .select("*")
-    .or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`)
+    .eq(ehUuid(idOrSlug) ? "id" : "slug", idOrSlug)
     .maybeSingle();
   return data ? mapCidade(data) : null;
 });
@@ -38,7 +41,7 @@ export const portos = cache(async (): Promise<Porto[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("portos")
-    .select("*")
+    .select("*, cidade:cidades(slug)")
     .order("nome");
   if (error || !data) return [];
   return data.map(mapPorto);
@@ -48,7 +51,7 @@ export const porto = cache(async (id: string): Promise<Porto | null> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("portos")
-    .select("*")
+    .select("*, cidade:cidades(slug)")
     .eq("id", id)
     .maybeSingle();
   return data ? mapPorto(data) : null;
@@ -127,11 +130,18 @@ export const agencias = cache(async (): Promise<Agencia[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("agencias")
-    .select("*")
+    .select("*, cidade:cidades(slug)")
     .order("nome");
 
   if (error || !data) return [];
   return data.map(mapAgencia);
+});
+
+/** uuid da cidade a partir do slug (ou do próprio uuid) — para gravar e filtrar no banco */
+export const uuidCidade = cache(async (slugOuId: string): Promise<string | null> => {
+  const supabase = await createClient();
+  const { data } = await supabase.from("cidades").select("id").eq(ehUuid(slugOuId) ? "id" : "slug", slugOuId).maybeSingle();
+  return data?.id ?? null;
 });
 
 export const empresaPublica = cache(async () => {

@@ -1,9 +1,11 @@
 import "server-only";
+import { cache } from "react";
+import { CONFIG_PADRAO } from "../seed";
 import { addMinutes, localDayKey } from "../format";
 import { cidades, portos, linhas, embarcacoes } from "./catalogo";
 import { assentosOcupados, viagensAdmin, viagem } from "./viagens";
 import { festivaisNoSite } from "./festivais";
-import type { Viagem, Festival, Passagem } from "../types";
+import type { Configuracao, TipoPassageiro, Viagem, Festival, Passagem } from "../types";
 import { createClient } from "../supabase/server";
 import { mapPassagem } from "./map";
 
@@ -39,7 +41,8 @@ export async function passageirosPorSegmento(v: Viagem) {
   const cont = new Array(l.paradas.length - 1).fill(0);
   
   const supabase = await createClient();
-  const { data } = await supabase.from("passagens").select("*").eq("viagem_id", v.id).neq("status", "CANCELADA");
+  const { data: pData } = await supabase.from("passagens" as any).select("*").eq("viagem_id", v.id).neq("status", "CANCELADA");
+  const data = pData as any[] | null;
   if (!data) return cont;
   
   const ativos = data.map(mapPassagem).filter(p => true); // Assume active for now
@@ -67,7 +70,9 @@ export async function tarifaViagem(v: Viagem, origem: number, destino: number) {
   const base = l.tarifas[origem]?.[destino] ?? 0;
   
   // get festival da viagem
-  const { data } = await (await createClient()).from("festival_viagens").select("festival_id").eq("viagem_id", v.id).maybeSingle();
+  const supabase = await createClient();
+  const { data: fData } = await supabase.from("festival_viagens" as any).select("festival_id").eq("viagem_id", v.id).maybeSingle();
+  const data = fData as any;
   if (data) {
     const allFestivais = await festivaisNoSite(new Date(0));
     const f = allFestivais.find(x => x.id === data.festival_id);
@@ -181,35 +186,60 @@ export async function livresSemAcrescimo(viagemId: string, origem: number, desti
   return e.assentos.filter((a) => !ocup.has(a.id) && !(acr[a.id] > 0)).length;
 }
 
-export async function getConfig() {
+/**
+ * Configuração da empresa lida do banco (empresa_publica, empresas, descontos_tipo_passageiro, configuracoes_bilhete).
+ * O que ainda não estiver cadastrado cai no padrão real da São Tomé Expresso (CONFIG_PADRAO), nunca em dados inventados.
+ */
+export const getConfig = cache(async (): Promise<Configuracao> => {
+  const supabase = await createClient();
+  const [{ data: emp }, { data: descontos }, { data: interna }, { data: bilhete }] = await Promise.all([
+    supabase.from("empresa_publica").select("*").limit(1).maybeSingle(),
+    supabase.from("descontos_tipo_passageiro").select("tipo,percentual"),
+    // Só o usuário logado da empresa lê estas duas; para o visitante, valem os padrões
+    supabase.from("empresas").select("multa_cancelamento_pct,horas_cancelamento_sem_multa,taxa_sistema_pct").limit(1).maybeSingle(),
+    supabase.from("configuracoes_bilhete" as never).select("*").limit(1).maybeSingle(),
+  ]);
+  const p = CONFIG_PADRAO;
+  const e = (emp ?? {}) as Record<string, unknown>;
+  const whatsapps = Array.isArray(e.whatsapps) && e.whatsapps.length
+    ? (e.whatsapps as { cidade: string; numero: string }[]).map((w) => ({ ...w, link: `55${String(w.numero).replace(/\D/g, "")}` }))
+    : p.empresa.whatsapps;
+  const desc = { ...p.valores.descontos } as Record<TipoPassageiro, number>;
+  for (const d of (descontos ?? []) as { tipo: string; percentual: number }[]) {
+    if (d.tipo in desc) desc[d.tipo as TipoPassageiro] = Number(d.percentual) / 100;
+  }
+  const v = (interna ?? {}) as Record<string, unknown>;
+  const b = (bilhete ?? null) as Record<string, unknown> | null;
   return {
     empresa: {
-      nome: "NavStar",
-      razaoSocial: "NavStar Navegação",
-      cnpj: "00.000.000/0001-00",
-      whatsapps: [],
-      whatsapp: "5592999999999",
-      email: "contato@navstar.com",
-      tipoServico: "TRANSPORTE AQUAVIÁRIO",
-      beneficios: [],
-      minutosReservaSite: 15
+      nome: (e.nome_fantasia as string) || p.empresa.nome,
+      razaoSocial: (e.razao_social as string) || p.empresa.razaoSocial,
+      cnpj: (e.cnpj as string) || p.empresa.cnpj,
+      whatsapps,
+      whatsapp: (e.whatsapp as string) || whatsapps[0]?.link || p.empresa.whatsapp,
+      email: (e.email as string) || p.empresa.email,
+      tipoServico: (e.tipo_servico as string) || p.empresa.tipoServico,
+      beneficios: Array.isArray(e.beneficios) && e.beneficios.length ? (e.beneficios as string[]) : p.empresa.beneficios,
+      minutosReservaSite: Number(e.minutos_reserva_site) || p.empresa.minutosReservaSite,
     },
     valores: {
-      descontos: { INTEIRA: 0, CRIANCA: 0.5, COLO: 1, IDOSO: 0.5, ESTUDANTE: 0.5, PCD: 1 },
-      multaCancelamentoPct: 0.2,
-      horasCancelamentoSemMulta: 24,
-      taxaSistemaPct: 0.05
+      descontos: desc,
+      multaCancelamentoPct: v.multa_cancelamento_pct != null ? Number(v.multa_cancelamento_pct) : p.valores.multaCancelamentoPct,
+      horasCancelamentoSemMulta: v.horas_cancelamento_sem_multa != null ? Number(v.horas_cancelamento_sem_multa) : p.valores.horasCancelamentoSemMulta,
+      taxaSistemaPct: v.taxa_sistema_pct != null ? Number(v.taxa_sistema_pct) : p.valores.taxaSistemaPct,
     },
-    bilhete: {
-      larguraMm: 80,
-      titulo: "BILHETE DE PASSAGEM",
-      mostrarLogo: true,
-      mostrarValores: true,
-      mostrarQr: true,
-      mostrarBeneficios: true,
-      localEmbarque: "Porto de Manaus",
-      antecedenciaEmbarqueMin: 30,
-      mensagens: []
-    }
+    bilhete: b
+      ? {
+          larguraMm: Number(b.largura_mm) === 58 ? 58 : 80,
+          titulo: (b.titulo as string) || p.bilhete.titulo,
+          mostrarLogo: b.mostrar_logo !== false,
+          mostrarValores: b.mostrar_valores !== false,
+          mostrarQr: b.mostrar_qr !== false,
+          mostrarBeneficios: b.mostrar_beneficios !== false,
+          localEmbarque: (b.local_embarque as string) || p.bilhete.localEmbarque,
+          antecedenciaEmbarqueMin: Number(b.antecedencia_embarque_min ?? p.bilhete.antecedenciaEmbarqueMin),
+          mensagens: Array.isArray(b.mensagens) && b.mensagens.length ? (b.mensagens as string[]) : p.bilhete.mensagens,
+        }
+      : p.bilhete,
   };
-}
+});

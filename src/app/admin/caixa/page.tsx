@@ -5,16 +5,18 @@ import { Badge, Empty, PageHeader, Stat } from "@/components/ui";
 import { abrirCaixaAction, fecharCaixaAction, movimentarCaixaAction } from "@/lib/admin-actions";
 import { dateTime, label, money, time } from "@/lib/format";
 import { garantirAcesso } from "@/lib/sessao";
-import { caixaAberto, db, resumoCaixa, usuario } from "@/lib/store";
+import { caixaAberto, resumoCaixa, listarCaixasAbertos, ultimosCaixasFechados } from "@/lib/data";
 
 export const metadata = { title: "Caixa" };
 
 export default async function Caixa() {
   const op = await garantirAcesso("/admin/caixa");
-  const c = caixaAberto(op.id);
+  const c = await caixaAberto(op.id);
   const gestor = op.papel === "ADMIN" || op.papel === "GERENTE";
-  const abertosOutros = db().caixas.filter((x) => !x.fechadoEm && x.usuarioId !== op.id);
-  const meus = db().caixas.filter((x) => x.usuarioId === op.id && x.fechadoEm).slice(-5).reverse();
+  
+  const todosAbertos = gestor ? await listarCaixasAbertos() : [];
+  const abertosOutros = todosAbertos.filter((x: any) => x.usuarioId !== op.id);
+  const meus = await ultimosCaixasFechados(op.id);
 
   return (
     <>
@@ -52,11 +54,11 @@ export default async function Caixa() {
           <table className="table-base">
             <thead><tr><th>Operador</th><th>Aberto às</th><th className="text-right">Vendido</th><th className="text-right">Dinheiro esperado</th></tr></thead>
             <tbody>
-              {abertosOutros.map((x) => {
-                const r = resumoCaixa(x);
+              {abertosOutros.map(async (x: any) => {
+                const r = await resumoCaixa(x.id);
                 return (
                   <tr key={x.id}>
-                    <td className="font-semibold">{usuario(x.usuarioId)?.nome}</td>
+                    <td className="font-semibold">{x.usuarioNome}</td>
                     <td>{dateTime(x.abertoEm)}</td>
                     <td className="text-right tabular-nums">{money(r.vendido)}</td>
                     <td className="text-right tabular-nums">{money(r.esperado)}</td>
@@ -71,9 +73,11 @@ export default async function Caixa() {
   );
 }
 
-function CaixaAberto({ id }: { id: string }) {
-  const c = db().caixas.find((x) => x.id === id)!;
-  const r = resumoCaixa(c);
+async function CaixaAberto({ id }: { id: string }) {
+  const r = await resumoCaixa(id);
+  const c = await caixaAberto((await garantirAcesso("/admin/caixa")).id);
+  if (!c) return null;
+
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -128,7 +132,7 @@ function CaixaAberto({ id }: { id: string }) {
               <table className="table-base">
                 <thead><tr><th>Hora</th><th>Tipo</th><th>Observação</th><th className="text-right">Valor</th></tr></thead>
                 <tbody>
-                  {c.movimentos.map((m, i) => (
+                  {c.movimentos.map((m: any, i: number) => (
                     <tr key={i}>
                       <td>{time(m.createdAt)}</td>
                       <td>{m.tipo === "SANGRIA" ? "Sangria" : "Suprimento"}</td>
@@ -180,7 +184,7 @@ function CaixaAberto({ id }: { id: string }) {
   );
 }
 
-function UltimosCaixas({ caixas }: { caixas: ReturnType<typeof db>["caixas"] }) {
+function UltimosCaixas({ caixas }: { caixas: any[] }) {
   return (
     <div className="card overflow-x-auto">
       <h2 className="p-5 font-bold">Seus últimos fechamentos</h2>
@@ -188,16 +192,13 @@ function UltimosCaixas({ caixas }: { caixas: ReturnType<typeof db>["caixas"] }) 
         <div className="px-5 pb-5"><Empty>Nenhum caixa fechado.</Empty></div>
       ) : (
         <table className="table-base">
-          <thead><tr><th>Fechado em</th><th className="text-right">Esperado</th><th className="text-right">Contado</th><th className="text-right">Diferença</th><th /></tr></thead>
+          <thead><tr><th>Fechado em</th><th className="text-right">Contado</th><th /></tr></thead>
           <tbody>
             {caixas.map((c) => {
-              const r = resumoCaixa(c);
               return (
                 <tr key={c.id}>
                   <td>{dateTime(c.fechadoEm!)}</td>
-                  <td className="text-right tabular-nums">{money(r.esperado)}</td>
                   <td className="text-right tabular-nums">{money(c.valorContado ?? 0)}</td>
-                  <td className={`text-right font-semibold tabular-nums ${r.diferenca && r.diferenca < 0 ? "text-red-700" : "text-slate-700"}`}>{money(r.diferenca ?? 0)}</td>
                   <td><Link href={`/admin/caixa/${c.id}`} className="text-sm font-semibold text-rio-700 hover:underline">Comprovante</Link></td>
                 </tr>
               );

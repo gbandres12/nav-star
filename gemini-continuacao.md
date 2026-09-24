@@ -8,6 +8,75 @@
 
 ---
 
+## 000. Atualização (Claude, 24/09) — acesso e domínio
+
+- **Domínio oficial:** https://sistema.saotomeexpresso.com (já no projeto da Vercel, DNS ok). Use-o em links e no Supabase.
+- **Links de acesso corrigidos:** convites e reenvios (`src/lib/data/usuarios.ts`) agora usam `properties.hashed_token` e apontam para
+  `/auth/confirm?token_hash=…&type=invite|recovery&next=/primeiro-acesso` (`src/lib/site.ts#linkDeAcesso`). Validado ponta a ponta em produção:
+  o link abre a sessão, leva ao primeiro acesso e libera o `/admin`. Antes usavam `action_link` (PKCE, só funcionava no mesmo navegador
+  e dependia das Redirect URLs).
+- **Endereço do site:** `origemDoSite()` usa `NEXT_PUBLIC_SITE_URL` ou o domínio da requisição — nada mais cai em `localhost` em produção.
+- **Primeiro acesso sem link** agora mostra orientação em vez do formulário ("Auth session missing").
+- **Pendente (usuário, no painel do Supabase):** Site URL = domínio oficial, Redirect URLs com `https://sistema.saotomeexpresso.com/**`, e o
+  template de e-mail "Reset Password" com `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/primeiro-acesso`
+  (idem "Invite user" com `type=invite`). Sem isso, o "Esqueci a senha" por e-mail continua frágil.
+
+## 00. Atualização (Claude, 23/09 23:10) — mais recente
+
+- **Carga inicial de produção feita** (`scripts/carga-inicial-producao.ts`): empresa, 6 cidades, 6 portos, São Tomé Expresso (128 poltronas),
+  linhas Manaus ↔ Santarém com preços e horários, 26 viagens, e o ADMIN `gabrielandres052@gmail.com` (perfil criado; aguardando primeiro acesso).
+- **Deploy de produção feito** (https://nav-star.vercel.app) com o código atual: site lendo do Supabase, busca e preços conferidos em produção.
+- **Bug corrigido na camada de dados:** no app a cidade é o *slug* (`manaus`) e no banco é *uuid*. `mapPorto`/agências/festivais/encomendas
+  devolviam o uuid e as buscas porto→cidade nunca batiam (home com erro 500, busca vazia). Agora as consultas trazem `cidade:cidades(slug)` e
+  as gravações convertem com `uuidCidade()` (`src/lib/data/catalogo.ts`). **Mantenha essa convenção** em qualquer tela nova.
+  `cidade()` também comparava slug com a coluna uuid (o Postgres recusa a consulta) — corrigido com `ehUuid()`.
+- **Migração `…0010_operacao.sql` reescrita:** o usuário tentou aplicar e falhou (`column "numero" of relation "pedidos" already exists`).
+  Agora é **re-executável** (if not exists / drop policy if exists) e contém **só a estrutura**. As 14 funções que estavam nela eram
+  **provisórias e devolviam "ok" sem fazer nada** (ex.: `cancelar_passagens`) — foram removidas. `db_architect`: implementar as RPCs de verdade
+  numa migração nova `…0011_operacao_rpcs.sql`, portando a regra do `store.ts`, com pgTAP. O original ficou salvo fora do repositório.
+- **0010 validada em Postgres 15 descartável** (0001→0005, 0007, depois 0010 duas vezes): ok e re-executável. Corrigida também a policy de
+  `caixa_movimentos`, que usava `caixa_sessoes.empresa_id` (coluna que não existe; a empresa vem de `perfis` via `usuario_id`).
+- **Divergência a resolver (`db_architect`):** o arquivo local `…0004_rpc_publicas.sql` **não compila** no Postgres
+  (`type t_passagem_item is record`, sintaxe do Oracle, perto da linha 59), mas as funções existem e funcionam no remoto — ou seja, o que
+  foi aplicado via MCP não é o que está no repositório. Traga a versão do remoto para o arquivo (ou corrija), para `db reset` funcionar.
+  E rode `npm run db:types`: o `database.types.ts` não lista `criar_pedido_site`, `pedido_publico`, `rastrear_encomenda`,
+  `criar_pedido_balcao` nem `validar_embarque`, que existem no remoto.
+- **Pendente do usuário:** Supabase → Authentication → URL Configuration (Site URL `https://nav-star.vercel.app` e
+  `https://nav-star.vercel.app/**`). Sem isso, convites e recuperação de senha voltam para `localhost:3000` — o primeiro convite do ADMIN saiu
+  assim e precisa ser gerado de novo (rodar o script de carga outra vez gera um link novo; é idempotente).
+- **Segurança:** a `SUPABASE_SECRET_KEY` foi colada no chat. Depois que tudo estiver estável, gerar uma nova no Supabase e atualizar
+  `.env.local` e Vercel (`vercel env`), com aprovação do usuário.
+
+## 0. Atualização (Claude, 23/09 21:50) — leia antes de tudo
+
+**O que o Antigravity já fez depois da primeira versão deste arquivo:** commit `753905c` (módulo de usuários no Supabase Auth,
+convite com link, `/primeiro-acesso`, `/recuperar-senha`, `/auth/confirm`, onboarding, migração `…0007`), o site público já lendo
+do Supabase, `scripts/seed.ts`, e a migração `…0010_operacao.sql` escrita. Trabalho **sem commit** em andamento: `src/lib/data/`
+`caixa.ts`, `cancelamentos.ts`, `mapa.ts`, `relatorios.ts` e as telas correspondentes.
+
+**Por que "não aparece nada" em produção:**
+1. Os dois deploys de produção do Antigravity (≈ 19:55) **falharam no build** por tipos desatualizados (`festival_viagens` não existia em
+   `database.types.ts`; `festivais.ts` importava `linha` de `./viagens`). O site no ar continua sendo o deploy anterior (protótipo em memória).
+   → **Sempre rode `npm run build` antes de publicar** e publique primeiro em preview.
+2. **O banco remoto está vazio:** nenhuma empresa, cidade, porto, linha, viagem ou perfil. Com o site já lendo do Supabase, um deploy
+   agora mostraria o site sem viagens. E ninguém consegue criar usuário, porque a criação exige um ADMIN logado com `empresa_id`.
+3. **A migração `…0010_operacao.sql` não foi aplicada no remoto** (`comodos`, `tripulantes`, `caixa_movimentos`, `festivais`,
+   `embarcacoes.assento_livre`… não existem). A `…0007` foi aplicada.
+
+**O que o Claude deixou pronto:**
+- `scripts/carga-inicial-producao.ts`: carga **real** e idempotente de produção (empresa, 6 cidades, 6 portos, São Tomé Expresso com
+  128 poltronas, linhas Manaus ↔ Santarém com paradas, preços e horários, viagens futuras) + **primeiro ADMIN por convite** (gera o link de
+  primeiro acesso; não define senha). Sem `--confirmar` só mostra o que faria. Não cria pedidos, encomendas nem usuários de teste.
+- Home do site não quebra mais com o banco vazio.
+
+**Ordem para destravar (o orquestrador conduz, o usuário aprova):**
+1. `db_architect`: aplicar `…0010_operacao.sql` no remoto (via MCP), depois `npm run db:types` e commit dos tipos.
+2. Usuário coloca `SUPABASE_SECRET_KEY` no `.env.local` e autoriza a carga. Rodar:
+   `npx tsx --env-file=.env.local scripts/carga-inicial-producao.ts --admin-email <email> --admin-nome "<nome>" --site https://nav-star.vercel.app --confirmar`
+3. No Supabase → Authentication → URL Configuration: Site URL `https://nav-star.vercel.app` e `https://nav-star.vercel.app/**` nas Redirect URLs
+   (sem isso o link de convite volta para `localhost`).
+4. `release_manager`: `npm run build` local → `npx vercel deploy` (preview) → smoke test → só então produção, com aprovação.
+
 ## 1. Estado atual
 
 ### No ar

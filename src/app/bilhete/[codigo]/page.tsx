@@ -5,7 +5,7 @@ import { BilheteTermico } from "@/components/bilhete-termico";
 import { AutoPrint } from "@/components/auto-print";
 import { PrintButton } from "@/components/print-button";
 import { PrintBilheteButton } from "@/components/print-bilhete-button";
-import { passagensDoPedido, pedidoPorCodigo } from "@/lib/data/pedidos";
+import { pedidoCompleto } from "@/lib/data/pedidos";
 import { getConfig } from "@/lib/data/utils";
 
 export const metadata = { title: "Bilhete", robots: { index: false } };
@@ -14,9 +14,9 @@ export const metadata = { title: "Bilhete", robots: { index: false } };
 export default async function BilhetePage({ params, searchParams }: PageProps<"/bilhete/[codigo]">) {
   const { codigo } = await params;
   const sp = await searchParams;
-  const pedido = await pedidoPorCodigo(codigo);
+  const pedido = await pedidoCompleto(codigo);
   if (!pedido) notFound();
-  const passagens = (await passagensDoPedido(pedido.id)).filter((p) => p.status === "EMITIDA" || p.status === "EMBARCADA");
+  const passagens = pedido.passagens.filter((p) => p.status === "EMITIDA" || p.status === "EMBARCADA");
   const config = await getConfig();
   const voltar = typeof sp.voltar === "string" && sp.voltar.startsWith("/") ? sp.voltar : `/pedido/${pedido.codigo}`;
 
@@ -38,7 +38,7 @@ export default async function BilhetePage({ params, searchParams }: PageProps<"/
         <div className="flex flex-col items-center gap-6 py-8 print:block print:py-0">
           {passagens.map((p) => (
             <div key={p.id} className="shadow-lg print:shadow-none">
-              <BilheteTermico passagem={p} pedido={pedido} />
+              <BilheteTermico passagem={p} pedido={pedido} config={config} />
             </div>
           ))}
           {sp.imprimir === "1" && <AutoPrint codigoPedido={pedido.codigo} />}
