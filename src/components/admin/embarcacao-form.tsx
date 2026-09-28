@@ -1,4 +1,4 @@
-import { ActionForm, Campo, Checkbox } from "./action-form";
+import { ActionForm, Campo } from "./action-form";
 import { salvarEmbarcacaoAction } from "@/lib/admin-actions";
 import type { Embarcacao } from "@/lib/types";
 
@@ -28,14 +28,14 @@ export function EmbarcacaoForm({ e }: { e?: Embarcacao }) {
         <Campo label="Comprimento (m)"><input name="comprimentoM" type="number" min={0} step="0.1" defaultValue={e?.comprimentoM} className="input" /></Campo>
         <Campo label="Observação" className="sm:col-span-2 lg:col-span-3"><input name="observacao" defaultValue={e?.observacao} className="input" /></Campo>
       </div>
-      <fieldset className="mt-5 rounded-xl border border-slate-200 p-4">
-        <legend className="px-1 text-sm font-semibold text-slate-700">Forma de venda dos lugares</legend>
-        <div className="grid gap-4 sm:grid-cols-[1fr_200px] sm:items-end">
-          <Checkbox name="assentoLivre" defaultChecked={e?.assentoLivre} label={<span><strong>Assento livre</strong> — poltronas sem numeração; o bilhete sai “LIVRE” e a venda para quando atinge a lotação</span>} />
-          <Campo label="Lotação (assento livre)"><input name="capacidadePassageiros" type="number" min={1} defaultValue={e?.assentoLivre ? e.capacidadePassageiros : undefined} className="input" placeholder="Ex.: 60" /></Campo>
-        </div>
-        <p className="mt-2 text-xs text-slate-500">Desmarcado: poltronas numeradas, com a capacidade calculada pelo mapa.</p>
-      </fieldset>
+      <div className="mt-5 grid gap-4 sm:grid-cols-[220px_1fr] sm:items-end">
+        <Campo label="Lotação total (passageiros)">
+          <input name="capacidadePassageiros" type="number" min={1} required defaultValue={e?.capacidadePassageiros || undefined} className="input" placeholder="Ex.: 128" />
+        </Campo>
+        <p className="text-xs text-slate-500 sm:pb-3">
+          Limite da Capitania, contando quem viaja sem poltrona (criança de colo). A venda de cada trecho para ao atingir este número.
+        </p>
+      </div>
     </ActionForm>
   );
 }

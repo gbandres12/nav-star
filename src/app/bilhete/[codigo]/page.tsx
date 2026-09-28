@@ -5,7 +5,7 @@ import { BilheteTermico } from "@/components/bilhete-termico";
 import { AutoPrint } from "@/components/auto-print";
 import { PrintButton } from "@/components/print-button";
 import { PrintBilheteButton } from "@/components/print-bilhete-button";
-import { pedidoCompleto } from "@/lib/data/pedidos";
+import { pedidoCompleto, viasImpressas } from "@/lib/data/pedidos";
 import { getConfig } from "@/lib/data/utils";
 
 export const metadata = { title: "Bilhete", robots: { index: false } };
@@ -17,7 +17,7 @@ export default async function BilhetePage({ params, searchParams }: PageProps<"/
   const pedido = await pedidoCompleto(codigo);
   if (!pedido) notFound();
   const passagens = pedido.passagens.filter((p) => p.status === "EMITIDA" || p.status === "EMBARCADA");
-  const config = await getConfig();
+  const [config, vias] = await Promise.all([getConfig(), viasImpressas(pedido.id)]);
   const voltar = typeof sp.voltar === "string" && sp.voltar.startsWith("/") ? sp.voltar : `/pedido/${pedido.codigo}`;
 
   return (
@@ -29,7 +29,11 @@ export default async function BilhetePage({ params, searchParams }: PageProps<"/
         <p className="hidden text-sm text-slate-500 sm:block">
           {passagens.length} bilhete(s) · papel {config.bilhete.larguraMm} mm — na impressão escolha a impressora térmica ou “Salvar como PDF”
         </p>
-        {voltar.startsWith("/admin") ? <PrintBilheteButton codigo={pedido.codigo} /> : <PrintButton label="Imprimir" />}
+        {voltar.startsWith("/admin") ? (
+          <PrintBilheteButton codigo={pedido.codigo} label="Imprimir / salvar PDF" />
+        ) : (
+          <PrintButton label="Imprimir / salvar PDF" />
+        )}
       </div>
 
       {pedido.status !== "PAGO" || passagens.length === 0 ? (
@@ -38,7 +42,7 @@ export default async function BilhetePage({ params, searchParams }: PageProps<"/
         <div className="flex flex-col items-center gap-6 py-8 print:block print:py-0">
           {passagens.map((p) => (
             <div key={p.id} className="shadow-lg print:shadow-none">
-              <BilheteTermico passagem={p} pedido={pedido} config={config} />
+              <BilheteTermico passagem={p} pedido={pedido} config={config} impressoes={vias.get(p.id) ?? 0} />
             </div>
           ))}
           {sp.imprimir === "1" && <AutoPrint codigoPedido={pedido.codigo} />}

@@ -132,6 +132,7 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
     },
     valores: {
       descontos: { INTEIRA: 0, CRIANCA: 0.5, COLO: 1, IDOSO: 0.5, ESTUDANTE: 0.5, PCD: 1 },
+      isentosTaxa: { INTEIRA: false, CRIANCA: true, COLO: true, IDOSO: true, ESTUDANTE: false, PCD: true },
       multaCancelamentoPct: 0.2,
       horasCancelamentoSemMulta: 24,
       taxaSistemaPct: 0.05
@@ -161,6 +162,7 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
     },
     valores: {
       descontos: { INTEIRA: 0, CRIANCA: 0.5, COLO: 1, IDOSO: 0.5, ESTUDANTE: 0.5, PCD: 1 },
+      isentosTaxa: { INTEIRA: false, CRIANCA: true, COLO: true, IDOSO: true, ESTUDANTE: false, PCD: true },
       multaCancelamentoPct: 0.2,
       horasCancelamentoSemMulta: 24,
       taxaSistemaPct: 0.05

@@ -15,7 +15,9 @@ export default async function Caixa() {
   const gestor = op.papel === "ADMIN" || op.papel === "GERENTE";
   
   const todosAbertos = gestor ? await listarCaixasAbertos() : [];
-  const abertosOutros = todosAbertos.filter((x: any) => x.usuarioId !== op.id);
+  const abertosOutros = await Promise.all(
+    todosAbertos.filter((x) => x.usuarioId !== op.id).map(async (x) => ({ ...x, resumo: await resumoCaixa(x.id) })),
+  );
   const meus = await ultimosCaixasFechados(op.id);
 
   return (
@@ -54,8 +56,8 @@ export default async function Caixa() {
           <table className="table-base">
             <thead><tr><th>Operador</th><th>Aberto às</th><th className="text-right">Vendido</th><th className="text-right">Dinheiro esperado</th></tr></thead>
             <tbody>
-              {abertosOutros.map(async (x: any) => {
-                const r = await resumoCaixa(x.id);
+              {abertosOutros.map((x) => {
+                const r = x.resumo;
                 return (
                   <tr key={x.id}>
                     <td className="font-semibold">{x.usuarioNome}</td>
@@ -132,7 +134,7 @@ async function CaixaAberto({ id }: { id: string }) {
               <table className="table-base">
                 <thead><tr><th>Hora</th><th>Tipo</th><th>Observação</th><th className="text-right">Valor</th></tr></thead>
                 <tbody>
-                  {c.movimentos.map((m: any, i: number) => (
+                  {c.movimentos.map((m, i) => (
                     <tr key={i}>
                       <td>{time(m.createdAt)}</td>
                       <td>{m.tipo === "SANGRIA" ? "Sangria" : "Suprimento"}</td>
@@ -184,7 +186,7 @@ async function CaixaAberto({ id }: { id: string }) {
   );
 }
 
-function UltimosCaixas({ caixas }: { caixas: any[] }) {
+function UltimosCaixas({ caixas }: { caixas: Awaited<ReturnType<typeof ultimosCaixasFechados>> }) {
   return (
     <div className="card overflow-x-auto">
       <h2 className="p-5 font-bold">Seus últimos fechamentos</h2>

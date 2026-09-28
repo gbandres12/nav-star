@@ -68,6 +68,7 @@ export function mapAssento(row: DbAssento): Assento {
     fileira: row.fileira,
     coluna: row.coluna,
     tipo: row.tipo,
+    comodoId: row.comodo_id ?? undefined,
   };
 }
 
@@ -84,7 +85,12 @@ export function mapEmbarcacao(
     capacidadeCargaKg: row.capacidade_carga_kg || 0,
     status: row.status,
     colunasMapa: row.colunas_mapa,
-    assentos: assentos.map(mapAssento),
+    // Poltronas retiradas do mapa ficam inativas (guardam o histórico de vendas) e não aparecem mais
+    assentos: assentos.filter((a) => a.ativo).map(mapAssento),
+    assentoLivre: row.assento_livre,
+    ano: row.ano ?? undefined,
+    comprimentoM: row.comprimento_m == null ? undefined : Number(row.comprimento_m),
+    observacao: row.observacao ?? undefined,
   };
 }
 

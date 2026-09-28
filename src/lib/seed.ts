@@ -62,6 +62,7 @@ export const CONFIG_PADRAO: Configuracao = {
   },
   valores: {
     descontos: { INTEIRA: 0, CRIANCA: 0.5, COLO: 1, IDOSO: 0.5, ESTUDANTE: 0.5, PCD: 1 },
+    isentosTaxa: { INTEIRA: false, CRIANCA: true, COLO: true, IDOSO: true, ESTUDANTE: false, PCD: true },
     multaCancelamentoPct: 10,
     horasCancelamentoSemMulta: 24,
     taxaSistemaPct: 3,

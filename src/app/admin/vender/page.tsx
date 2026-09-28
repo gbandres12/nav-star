@@ -10,7 +10,7 @@ import { garantirAcesso } from "@/lib/sessao";
 export const metadata = { title: "Vender passagens" };
 
 export default async function Vender({ searchParams }: PageProps<"/admin/vender">) {
-  await garantirAcesso("/admin/vender");
+  const operador = await garantirAcesso("/admin/vender");
   const sp = await searchParams;
   const s = (k: string) => (typeof sp[k] === "string" && sp[k] ? (sp[k] as string) : undefined);
   const [cidades, embarcacoes] = await Promise.all([cidadesAtendidas(), listarEmbarcacoes()]);
@@ -66,7 +66,22 @@ export default async function Vender({ searchParams }: PageProps<"/admin/vender"
       </form>
 
       {resultados.length === 0 ? (
-        <Empty>Nenhuma saída com venda aberta para esses filtros. Tente outra data.</Empty>
+        <Empty>
+          <div className="mx-auto max-w-xl space-y-3">
+            <p className="font-semibold text-slate-700">Nenhuma saída com venda aberta para esses filtros.</p>
+            <p>
+              Para emitir uma passagem, primeiro escolha uma saída disponível. Confira a data ou veja a programação
+              de viagens; quando houver saída aberta, clique em <strong>Vender</strong> para preencher os dados do
+              passageiro e do comprador.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 pt-1">
+              <Link href="/admin/viagens" className="btn-ghost">Ver programação de viagens</Link>
+              {operador.papel === "ADMIN" && (
+                <Link href="/admin/viagens/nova" className="btn-primary">Cadastrar viagem avulsa</Link>
+              )}
+            </div>
+          </div>
+        </Empty>
       ) : (
         <div className="card overflow-x-auto">
           <table className="table-base">
@@ -102,4 +117,3 @@ export default async function Vender({ searchParams }: PageProps<"/admin/vender"
     </>
   );
 }
-

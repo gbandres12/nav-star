@@ -261,6 +261,7 @@ export type Configuracao = {
   };
   valores: {
     descontos: Record<TipoPassageiro, number>; // 0.5 = 50%
+    isentosTaxa: Record<TipoPassageiro, boolean>;
     multaCancelamentoPct: number; // % retido no cancelamento
     horasCancelamentoSemMulta: number; // até X horas antes da saída, sem multa
     taxaSistemaPct: number; // % da plataforma sobre as passagens vendidas

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { BookingFlow } from "@/components/booking-flow";
+import { taxaEmbarqueTrecho } from "@/lib/data/precos";
 import { TripSummary } from "@/components/trip-summary";
 import { viagem, assentosOcupados } from "@/lib/data/viagens";
 import { embarcacao as getEmbarcacao, linha as getLinha } from "@/lib/data/catalogo";
@@ -43,12 +44,13 @@ export default async function EscolherPoltrona({ params, searchParams }: PagePro
           origemOrdem={o}
           destinoOrdem={d}
           valor={await tarifaViagem(v, o, d)}
-          taxa={origem.porto.taxaEmbarque}
+          taxa={await taxaEmbarqueTrecho(l.id, o, d, origem.porto.taxaEmbarque)}
           assentos={e.assentos}
           colunas={e.colunasMapa}
           ocupados={[...(await assentosOcupados(v.id, o, d))]}
           canal="SITE"
           descontos={(await getConfig()).valores.descontos}
+          isentosTaxa={(await getConfig()).valores.isentosTaxa}
           minutosReserva={(await getConfig()).empresa.minutosReservaSite}
           acrescimos={await acrescimosEmbarcacao(e.id)}
           livresSemAcrescimo={await livresSemAcrescimo(v.id, o, d)}

@@ -8,7 +8,11 @@ export function PrintBilheteButton({ codigo, label = "Imprimir" }: { codigo: str
   return (
     <button
       type="button"
-      onClick={() => registrarImpressaoAction(codigo).finally(() => window.print())}
+      onClick={() => {
+        // Imprime o que está na tela e só depois conta a via: esta impressão sai com a marcação atual e a próxima já vem como "2ª VIA"
+        window.print();
+        void registrarImpressaoAction(codigo);
+      }}
       className="btn-ghost no-print"
     >
       <Printer size={16} /> {label}

@@ -6,34 +6,21 @@ import { redirect } from "next/navigation";
 import { money } from "./format";
 import { COOKIE_OPERADOR, exigirPapel } from "./sessao";
 import {
-  abrirCaixa,
-  alterarStatusViagem,
-  alternarVendas,
   cancelarPassagens,
   config,
-  criarViagemAvulsa,
-  definirTripulacao,
-  fecharCaixa,
-  gerarViagens,
-  movimentarCaixa,
-  registrarImpressao,
-  salvarAgencia,
   salvarCidade,
-  salvarComodo,
   salvarConfig,
-  salvarConvenio,
-  salvarEmbarcacao,
   salvarHorarios,
   salvarLinha,
-  salvarMapaAssentos,
   salvarPorto,
   salvarTarifas,
-  salvarTripulante,
-  trocarEmbarcacao,
   usuario,
   type Resultado,
 } from "./store";
-import type { Assento, Configuracao, Linha, StatusViagem, TipoPassageiro, PapelUsuario } from "./types";
+import type { Assento, Configuracao, FuncaoTripulante, Linha, StatusViagem, TipoPassageiro, PapelUsuario } from "./types";
+import * as frota from "./data/frota";
+import * as convenios from "./data/convenios";
+import * as gestaoViagens from "./data/viagens-gestao";
 import {
   criarUsuarioComConvite,
   atualizarUsuario,
@@ -87,7 +74,8 @@ export async function abrirCaixaAction(_: Estado, form: FormData): Promise<Estad
   if (a.erro) return { erro: a.erro };
   const { n } = leitor(form);
   const { abrirCaixa } = await import("./data/caixa");
-  return concluir(await abrirCaixa(a.op!.id, n("valorAbertura") || 0), "Caixa aberto.");
+  const v = n("valorAbertura");
+  return concluir(await abrirCaixa(Number.isNaN(v) ? 0 : v), "Caixa aberto.");
 }
 
 export async function movimentarCaixaAction(_: Estado, form: FormData): Promise<Estado> {
@@ -96,7 +84,7 @@ export async function movimentarCaixaAction(_: Estado, form: FormData): Promise<
   const { s, n } = leitor(form);
   const tipo = s("tipo") === "SUPRIMENTO" ? "SUPRIMENTO" : "SANGRIA";
   const { movimentarCaixa } = await import("./data/caixa");
-  return concluir(await movimentarCaixa(a.op!.id, tipo, n("valor"), s("observacao")), tipo === "SANGRIA" ? "Sangria registrada." : "Suprimento registrado.");
+  return concluir(await movimentarCaixa(tipo, n("valor"), s("observacao")), tipo === "SANGRIA" ? "Sangria registrada." : "Suprimento registrado.");
 }
 
 export async function fecharCaixaAction(_: Estado, form: FormData): Promise<Estado> {
@@ -104,7 +92,7 @@ export async function fecharCaixaAction(_: Estado, form: FormData): Promise<Esta
   if (a.erro) return { erro: a.erro };
   const { s, n } = leitor(form);
   const { fecharCaixa } = await import("./data/caixa");
-  const r = await fecharCaixa(a.op!.id, n("valorContado"), s("observacao"));
+  const r = await fecharCaixa(n("valorContado"), s("observacao"));
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
   redirect(`/admin/caixa/${r.caixa.id}?imprimir=1`);
@@ -127,12 +115,14 @@ export async function cancelarAction(_: Estado, form: FormData): Promise<Estado>
 // ─── Bilhete ───────────────────────────────────────────────────
 
 /** Chamado pelo botão de imprimir da página do bilhete: conta a via impressa */
-export async function registrarImpressaoAction(codigo: string, passagemId?: string) {
+export async function registrarImpressaoAction(codigo: string) {
   // Só conta vias impressas pela empresa (balcão); o passageiro imprimindo em casa não gera "2ª via"
   const a = await exigirPapel(...BALCAO);
   if (a.erro) return;
-  registrarImpressao(codigo, passagemId);
+  const { registrarImpressao } = await import("./data/pedidos");
+  await registrarImpressao(codigo);
   revalidatePath(`/admin/pedidos/${codigo}`);
+  revalidatePath(`/bilhete/${codigo}`);
 }
 
 // ─── Viagem ────────────────────────────────────────────────────
@@ -141,13 +131,13 @@ export async function statusViagemAction(_: Estado, form: FormData): Promise<Est
   const a = await exigirPapel(...GESTAO);
   if (a.erro) return { erro: a.erro };
   const { s } = leitor(form);
-  return concluir(alterarStatusViagem(s("id"), s("status") as StatusViagem, s("motivo")), "Status atualizado.", "/rastreio");
+  return concluir(await gestaoViagens.mudarStatus(s("id"), s("status") as StatusViagem, s("motivo")), "Status atualizado.", "/viagens", "/rastreio");
 }
 
 export async function alternarVendasAction(form: FormData) {
   const a = await exigirPapel(...GESTAO);
   if (a.erro) return;
-  alternarVendas(String(form.get("id")));
+  await gestaoViagens.alternarVendas(String(form.get("id")));
   revalidatePath("/admin", "layout");
   revalidatePath("/viagens");
 }
@@ -156,33 +146,18 @@ export async function tripulacaoAction(_: Estado, form: FormData): Promise<Estad
   const a = await exigirPapel(...GESTAO);
   if (a.erro) return { erro: a.erro };
   const { s } = leitor(form);
-  return concluir(definirTripulacao(s("id"), form.getAll("tripulante").map(String), s("observacao")), "Tripulação salva.");
-}
-
-export async function trocarEmbarcacaoAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const { s } = leitor(form);
-  return concluir(trocarEmbarcacao(s("id"), s("embarcacaoId")), "Embarcação trocada. Os passageiros mantiveram as poltronas.");
+  return concluir(await gestaoViagens.salvarTripulacao(s("id"), form.getAll("tripulante").map(String), s("observacao")), "Tripulação salva.");
 }
 
 export async function viagemAvulsaAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
+  const a = await exigirPapel("ADMIN");
   if (a.erro) return { erro: a.erro };
   const { s } = leitor(form);
-  const r = criarViagemAvulsa(s("linhaId"), s("embarcacaoId"), s("dia"), s("hora"));
+  const r = await gestaoViagens.criarViagemAvulsa({ linhaId: s("linhaId"), embarcacaoId: s("embarcacaoId"), dia: s("dia"), hora: s("hora") });
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
-  redirect(`/admin/viagens/${r.viagem.id}`);
-}
-
-export async function gerarViagensAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const dias = Math.min(180, Math.max(7, Number(form.get("dias")) || 60));
-  const n = gerarViagens(dias);
-  revalidatePath("/admin", "layout");
-  return { ok: n ? `${n} viagem(ns) criada(s) para os próximos ${dias} dias.` : `Programação já estava gerada para os próximos ${dias} dias.` };
+  revalidatePath("/viagens");
+  redirect(`/admin/viagens/${r.id}`);
 }
 
 // ─── Cadastros ─────────────────────────────────────────────────
@@ -207,21 +182,20 @@ export async function salvarPortoAction(_: Estado, form: FormData): Promise<Esta
 }
 
 export async function salvarEmbarcacaoAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
+  const a = await exigirPapel("ADMIN");
   if (a.erro) return { erro: a.erro };
-  const { s, n, b } = leitor(form);
-  const r = salvarEmbarcacao({
+  const { s, n } = leitor(form);
+  const r = await frota.salvarEmbarcacao({
     id: s("id") || undefined,
     nome: s("nome"),
     tipo: s("tipo"),
     inscricaoCapitania: s("inscricaoCapitania"),
+    capacidadePassageiros: Math.round(n("capacidadePassageiros") || 0),
     capacidadeCargaKg: n("capacidadeCargaKg") || 0,
     status: (["ATIVA", "MANUTENCAO", "INATIVA"].includes(s("status")) ? s("status") : "ATIVA") as "ATIVA",
     ano: n("ano") || undefined,
     comprimentoM: n("comprimentoM") || undefined,
     observacao: s("observacao"),
-    assentoLivre: b("assentoLivre"),
-    capacidadePassageiros: n("capacidadePassageiros") || 0,
   });
   if (r.ok && !s("id")) {
     revalidatePath("/admin", "layout");
@@ -231,16 +205,17 @@ export async function salvarEmbarcacaoAction(_: Estado, form: FormData): Promise
 }
 
 export async function salvarMapaAction(embarcacaoId: string, colunas: number, assentos: Omit<Assento, "id">[]): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
+  const a = await exigirPapel("ADMIN");
   if (a.erro) return { erro: a.erro };
-  return concluir(salvarMapaAssentos(embarcacaoId, colunas, assentos), `Mapa salvo: ${assentos.length} poltronas.`);
+  const r = await frota.salvarMapa(embarcacaoId, colunas, assentos);
+  return r.ok ? concluir(r, `Mapa salvo: ${r.poltronas} poltronas.`) : { erro: r.erro };
 }
 
 export async function salvarComodoAction(_: Estado, form: FormData): Promise<Estado> {
   const a = await exigirPapel(...GESTAO);
   if (a.erro) return { erro: a.erro };
   const { s, n, b } = leitor(form);
-  const r = salvarComodo({ id: s("id") || undefined, embarcacaoId: s("embarcacaoId"), nome: s("nome"), descricao: s("descricao"), acrescimo: n("acrescimo") || 0, cor: s("cor"), ativo: b("ativo") });
+  const r = await frota.salvarComodo({ id: s("id") || undefined, embarcacaoId: s("embarcacaoId"), nome: s("nome"), descricao: s("descricao"), acrescimo: n("acrescimo") || 0, cor: s("cor"), ativo: b("ativo") });
   return concluir(r, s("id") ? "Cômodo atualizado." : "Cômodo criado.");
 }
 
@@ -248,15 +223,15 @@ export async function salvarTripulanteAction(_: Estado, form: FormData): Promise
   const a = await exigirPapel(...GESTAO);
   if (a.erro) return { erro: a.erro };
   const { s, b } = leitor(form);
-  const r = salvarTripulante({
+  const r = await frota.salvarTripulante({
     id: s("id") || undefined,
     nome: s("nome"),
-    funcao: s("funcao"),
+    funcao: s("funcao") as FuncaoTripulante,
     documento: s("documento"),
     habilitacao: s("habilitacao"),
-    validadeHabilitacao: s("validadeHabilitacao"),
+    validadeHabilitacao: s("validadeHabilitacao") || undefined,
     telefone: s("telefone"),
-    embarcacaoId: s("embarcacaoId"),
+    embarcacaoId: s("embarcacaoId") || undefined,
     ativo: b("ativo"),
   });
   if (r.ok && !s("id")) {
@@ -296,15 +271,28 @@ export async function salvarConvenioAction(_: Estado, form: FormData): Promise<E
   const a = await exigirPapel(...GESTAO);
   if (a.erro) return { erro: a.erro };
   const { s, n, b } = leitor(form);
-  const r = salvarConvenio({ id: s("id") || undefined, nome: s("nome"), cnpj: s("cnpj"), descontoPercentual: n("descontoPercentual") || 0, faturado: b("faturado"), contato: s("contato"), ativo: b("ativo") });
+  const r = await convenios.salvarConvenio({ id: s("id") || undefined, nome: s("nome"), cnpj: s("cnpj"), descontoPercentual: n("descontoPercentual"), faturado: b("faturado"), contato: s("contato"), ativo: b("ativo") });
   return concluir(r, s("id") ? "Convênio atualizado." : "Convênio criado.");
 }
 
-export async function salvarAgenciaAction(_: Estado, form: FormData): Promise<Estado> {
+export async function salvarTarifaConvenioAction(_: Estado, form: FormData): Promise<Estado> {
   const a = await exigirPapel(...GESTAO);
   if (a.erro) return { erro: a.erro };
   const { s, n, b } = leitor(form);
-  const r = salvarAgencia({ id: s("id") || undefined, nome: s("nome"), cidadeId: s("cidadeId"), comissaoPercentual: n("comissaoPercentual") || 0, ativa: b("ativa") });
+  const [linhaId, origem, destino] = s("trecho").split(":");
+  const r = await convenios.salvarTarifaConvenio({
+    convenioId: s("convenioId"), linhaId,
+    origemOrdem: Number(origem), destinoOrdem: Number(destino),
+    valor: n("valor"), ativa: b("ativa"),
+  });
+  return concluir(r, "Tarifa especial salva.", "/admin/convenios", "/admin/vender");
+}
+
+export async function salvarAgenciaAction(_: Estado, form: FormData): Promise<Estado> {
+  const a = await exigirPapel("ADMIN");
+  if (a.erro) return { erro: a.erro };
+  const { s, n, b } = leitor(form);
+  const r = await frota.salvarAgencia({ id: s("id") || undefined, nome: s("nome"), cidadeId: s("cidadeId"), cnpj: s("cnpj"), comissaoPercentual: n("comissaoPercentual") || 0, ativa: b("ativa") });
   return concluir(r, s("id") ? "Agência atualizada." : "Agência criada.");
 }
 
@@ -412,6 +400,7 @@ export async function salvarValoresAction(_: Estado, form: FormData): Promise<Es
   if (Object.values(descontos).some((d) => !(d >= 0 && d <= 1))) return { erro: "Descontos devem ficar entre 0% e 100%." };
   const valores: Configuracao["valores"] = {
     descontos,
+    isentosTaxa: config().valores.isentosTaxa,
     multaCancelamentoPct: n("multaCancelamentoPct") || 0,
     horasCancelamentoSemMulta: n("horasCancelamentoSemMulta") || 0,
     taxaSistemaPct: n("taxaSistemaPct") || 0,

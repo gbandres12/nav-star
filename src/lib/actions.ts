@@ -25,6 +25,7 @@ export async function finalizarCompra(input: NovoPedidoInput): Promise<CheckoutS
     compradorEmail: input.comprador.email,
     compradorTelefone: input.comprador.telefone,
     metodoPagamento: input.metodo,
+    convenioId: input.canal === "SITE" ? undefined : input.convenioId,
     passageiros: input.passageiros
   };
 

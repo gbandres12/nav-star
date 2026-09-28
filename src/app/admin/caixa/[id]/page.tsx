@@ -29,7 +29,7 @@ export default async function ComprovanteCaixa({ params, searchParams }: PagePro
   const r = await resumoCaixa(id);
   const linhas: [string, string][] = [
     ["Troco inicial", money(c.valor_abertura)],
-    ...r.porMetodo.map((m: any): [string, string] => [`${label(m.metodo)} (${m.qtd})`, money(m.valor)]),
+    ...r.porMetodo.map((m): [string, string] => [`${label(m.metodo)} (${m.qtd})`, money(m.valor)]),
     ["Suprimentos", `+${money(r.suprimentos)}`],
     ["Sangrias", `−${money(r.sangrias)}`],
   ];

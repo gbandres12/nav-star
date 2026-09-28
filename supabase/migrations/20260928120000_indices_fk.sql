@@ -1,0 +1,19 @@
+-- Índices para chaves estrangeiras apontadas pelo advisor de performance do Supabase.
+create index if not exists idx_assentos_comodo_id on public.assentos (comodo_id);
+create index if not exists idx_caixa_movimentos_caixa_id on public.caixa_movimentos (caixa_id);
+create index if not exists idx_cancelamentos_empresa_id on public.cancelamentos (empresa_id);
+create index if not exists idx_cancelamentos_pedido_id on public.cancelamentos (pedido_id);
+create index if not exists idx_cancelamentos_usuario_id on public.cancelamentos (usuario_id);
+create index if not exists idx_comodos_embarcacao_id on public.comodos (embarcacao_id);
+create index if not exists idx_comodos_empresa_id on public.comodos (empresa_id);
+create index if not exists idx_convenios_empresa_id on public.convenios (empresa_id);
+create index if not exists idx_descontos_historico_alterado_por on public.descontos_historico (alterado_por);
+create index if not exists idx_festivais_cidade_id on public.festivais (cidade_id);
+create index if not exists idx_festivais_empresa_id on public.festivais (empresa_id);
+create index if not exists idx_passagens_convenio_id on public.passagens (convenio_id);
+create index if not exists idx_tripulantes_embarcacao_id on public.tripulantes (embarcacao_id);
+create index if not exists idx_tripulantes_empresa_id on public.tripulantes (empresa_id);
+create index if not exists idx_viagem_tripulantes_tripulante_id on public.viagem_tripulantes (tripulante_id);
+create index if not exists idx_convenio_tarifas_trecho_convenio_id on public.convenio_tarifas_trecho (convenio_id);
+create index if not exists idx_convenio_tarifas_trecho_empresa_id on public.convenio_tarifas_trecho (empresa_id);
+create index if not exists idx_taxas_embarque_trecho_empresa_id on public.taxas_embarque_trecho (empresa_id);

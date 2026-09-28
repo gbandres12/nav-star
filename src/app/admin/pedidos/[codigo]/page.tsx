@@ -5,7 +5,7 @@ import { BilheteTermico } from "@/components/bilhete-termico";
 import { CancelarPedido } from "@/components/admin/cancelar-pedido";
 import { ConfirmarPagamento } from "@/components/admin/confirmar-pagamento";
 import { Badge } from "@/components/ui";
-import { pedidoCompleto, pedidoPorCodigo } from "@/lib/data/pedidos";
+import { pedidoCompleto, pedidoPorCodigo, viasImpressas } from "@/lib/data/pedidos";
 import { getConfig } from "@/lib/data/utils";
 import { createClient } from "@/lib/supabase/server";
 import { dateTime, label, money } from "@/lib/format";
@@ -20,6 +20,8 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
   const { codigo } = await params;
   const [p, interno, config] = await Promise.all([pedidoCompleto(codigo), pedidoPorCodigo(codigo), getConfig()]);
   if (!p || !interno) notFound();
+  const vias = await viasImpressas(p.id);
+  const jaImpresso = [...vias.values()].some((n) => n > 0);
 
   const vendedor = interno.vendedorId
     ? (await (await createClient()).from("perfis").select("nome").eq("id", interno.vendedorId).maybeSingle()).data?.nome
@@ -60,7 +62,7 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
           )}
           {p.status === "PAGO" && (
             <Link href={`/bilhete/${p.codigo}?imprimir=1&voltar=/admin/pedidos/${p.codigo}`} className="btn-primary">
-              <Printer size={16} /> Imprimir bilhetes ({config.bilhete.larguraMm} mm)
+              <Printer size={16} /> {jaImpresso ? "Reimprimir (2ª via)" : `Imprimir bilhetes (${config.bilhete.larguraMm} mm)`}
             </Link>
           )}
         </div>
@@ -92,7 +94,7 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
           {p.status === "PAGO" &&
             emitidas.map((x) => (
               <div key={x.id} className="rounded-sm shadow-lg ring-1 ring-slate-200">
-                <BilheteTermico passagem={x} pedido={p} config={config} />
+                <BilheteTermico passagem={x} pedido={p} config={config} impressoes={vias.get(x.id) ?? 0} />
               </div>
             ))}
           {p.status !== "PAGO" && ativas.length > 0 && (
@@ -140,6 +142,7 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
                 ["Vendedor", vendedor ?? "—"],
                 ["Criado em", dateTime(p.createdAt)],
                 ["Pagamento", `${label(p.pagamento.metodo)} · ${label(p.pagamento.status)}`],
+                ["Vias impressas", String(Math.max(0, ...vias.values()))],
                 ...(p.pagamento.pagoEm ? [["Pago em", dateTime(p.pagamento.pagoEm)]] : []),
               ].map(([k, val]) => (
                 <div key={k} className="flex justify-between gap-3">

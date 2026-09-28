@@ -66,6 +66,9 @@ export async function solicitarRecuperacaoAction(
   });
 
   if (error) {
+    // O e-mail gratuito do Supabase só manda poucas mensagens por hora
+    if (/rate limit/i.test(error.message))
+      return { erro: "Muitos e-mails enviados em pouco tempo. Aguarde cerca de 1 hora ou peça ao administrador um link novo (Usuários → Reenviar convite)." };
     return { erro: `Erro ao enviar link: ${error.message}` };
   }
 

@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { createClient } from "../supabase/server";
 import { mapViagem } from "./map";
+import { todasTaxasTrecho } from "./precos";
 import type { StatusViagem, Viagem } from "../types";
 
 export type ResultadoBuscaViagem = {
@@ -50,15 +51,19 @@ export async function buscarViagens(
 ): Promise<ResultadoBuscaViagem[]> {
   const supabase = await createClient();
   const dynamicClient = supabase as unknown as DynamicRpcClient;
-  const { data, error } = await dynamicClient.rpc("buscar_viagens", {
-    origem_slug: origemSlug,
-    destino_slug: destinoSlug,
-    dia: dia || null,
-  });
+  const [{ data, error }, taxas] = await Promise.all([
+    dynamicClient.rpc("buscar_viagens", {
+      origem_slug: origemSlug,
+      destino_slug: destinoSlug,
+      dia: dia || null,
+    }),
+    todasTaxasTrecho(),
+  ]);
 
   if (error || !data || !Array.isArray(data)) return [];
 
   const items = data as ItemViagemBusca[];
+  const taxasPorTrecho = new Map(taxas.map((t) => [`${t.linhaId}:${t.origemOrdem}:${t.destinoOrdem}`, t.valor]));
   return items.map((item) => ({
     viagem: {
       id: item.viagem_id,
@@ -76,7 +81,7 @@ export async function buscarViagens(
     origemHorario: item.saida,
     destinoHorario: item.chegada,
     tarifaBase: Number(item.valor),
-    taxaEmbarque: Number(item.taxa),
+    taxaEmbarque: taxasPorTrecho.get(`${item.linha_id}:${item.origem_ordem}:${item.destino_ordem}`) ?? Number(item.taxa),
     lugaresLivres: Number(item.livres),
     duracaoMinutos: Number(item.duracao_min),
   }));

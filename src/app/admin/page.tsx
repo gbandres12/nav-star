@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, Banknote, Landmark, Package, Ticket } from "lucide-react";
+import { ArrowRight, Banknote, BellRing, Landmark, Package, Ticket } from "lucide-react";
 import { BarChart } from "@/components/admin/charts";
 import { MonthNav } from "@/components/admin/month-nav";
 import { Badge, OccupancyBar, PageHeader, Stat } from "@/components/ui";
-import { db, expirarPedidos, linha, ocupacaoViagem, passagensDoPedido, pedidosPagos } from "@/lib/store";
-import { dateShort, dateTime, label, localDayKey, money, time, weekday } from "@/lib/format";
+import { linhas as listarLinhas } from "@/lib/data/catalogo";
+import { encomendasPendentes, proximasViagensPainel, resumoDoMes, ultimosPedidos } from "@/lib/data/painel";
+import { pedidosAConferir } from "@/lib/data/pedidos";
+import { dateShort, dateTime, label, money, time, weekday } from "@/lib/format";
 import { periodoMes } from "@/lib/periodo";
 import { usuarioAtual } from "@/lib/auth";
 import { OnboardingModal } from "@/components/admin/onboarding-modal";
@@ -15,26 +17,16 @@ export const metadata = { title: "Painel" };
 export default async function Painel({ searchParams }: PageProps<"/admin">) {
   const { mes, bemvindo } = await searchParams;
   const user = await usuarioAtual();
-  expirarPedidos();
   const per = periodoMes(mes);
-  const pedidos = pedidosPagos(per.inicio, per.fim);
-  const total = pedidos.reduce((s, p) => s + p.total, 0);
-  const taxas = pedidos.reduce((s, p) => s + p.taxas, 0);
-  const comissao = pedidos.reduce((s, p) => s + p.comissaoAgencia, 0);
-  const qtdPassagens = pedidos.reduce((s, p) => s + passagensDoPedido(p.id).length, 0);
-  const encomendasMes = db().encomendas.filter((e) => new Date(e.createdAt) >= per.inicio && new Date(e.createdAt) < per.fim);
-  const fretes = encomendasMes.reduce((s, e) => s + e.frete, 0);
-
-  const porDia = Array.from({ length: per.dias }, (_, i) => {
-    const key = `${per.mes}-${String(i + 1).padStart(2, "0")}`;
-    const doDia = pedidos.filter((p) => localDayKey(p.createdAt) === key);
-    return { label: String(i + 1), sub: `${String(i + 1).padStart(2, "0")}/${per.mes.slice(5)}`, value: doDia.reduce((s, p) => s + p.total, 0), hint: `${doDia.length} pedido(s)` };
-  });
-
-  const agora = new Date();
-  const proximas = db().viagens.filter((v) => new Date(v.partida) > new Date(agora.getTime() - 86_400_000) && v.status !== "CONCLUIDA").slice(0, 5);
-  const ultimos = [...db().pedidos].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 7);
-  const encPend = db().encomendas.filter((e) => e.status === "RECEBIDA" || e.status === "DISPONIVEL_RETIRADA");
+  const [r, proximas, ultimos, encPend, aConferir, linhas] = await Promise.all([
+    resumoDoMes(per.inicio, per.fim, per.dias, per.mes),
+    proximasViagensPainel(5),
+    ultimosPedidos(7),
+    encomendasPendentes(),
+    pedidosAConferir(),
+    listarLinhas(),
+  ]);
+  const nomeLinha = (id: string) => linhas.find((l) => l.id === id)?.nome ?? "";
 
   return (
     <>
@@ -62,19 +54,29 @@ export default async function Painel({ searchParams }: PageProps<"/admin">) {
         </div>
       )}
 
+      {aConferir > 0 && (
+        <Link href="/admin/pedidos?status=CONFERIR" className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900 hover:bg-amber-100">
+          <BellRing size={20} className="shrink-0" />
+          <span className="flex-1 text-sm"><strong>{aConferir} {aConferir === 1 ? "pedido" : "pedidos"} com PIX informado pelo cliente</strong> esperando conferência.</span>
+          <span className="text-sm font-semibold">Conferir →</span>
+        </Link>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Total vendido" value={money(total)} hint={`${pedidos.length} pedidos pagos`} icon={<Banknote size={18} />} />
-        <Stat label="Líquido da empresa" value={money(total - taxas - comissao)} hint={`Comissão agências ${money(comissao)} · Taxas ${money(taxas)}`} icon={<Landmark size={18} />} />
-        <Stat label="Passagens vendidas" value={qtdPassagens.toLocaleString("pt-BR")} hint={`Ticket médio ${money(pedidos.length ? total / pedidos.length : 0)}`} icon={<Ticket size={18} />} />
-        <Stat label="Fretes de encomendas" value={money(fretes)} hint={`${encomendasMes.length} encomendas recebidas`} icon={<Package size={18} />} />
+        <Stat label="Total vendido" value={money(r.total)} hint={`${r.pedidos} pedidos pagos`} icon={<Banknote size={18} />} />
+        <Stat label="Líquido da empresa" value={money(r.total - r.taxas - r.comissao)} hint={`Comissão agências ${money(r.comissao)} · Taxas ${money(r.taxas)}`} icon={<Landmark size={18} />} />
+        <Stat label="Passagens vendidas" value={r.passagens.toLocaleString("pt-BR")} hint={`Ticket médio ${money(r.pedidos ? r.total / r.pedidos : 0)}`} icon={<Ticket size={18} />} />
+        <Stat label="Fretes de encomendas" value={money(r.fretes)} hint={`${r.encomendas} encomendas recebidas`} icon={<Package size={18} />} />
       </div>
 
       <div className="card mt-6 p-5 sm:p-6">
         <div className="mb-5 flex items-baseline justify-between">
           <h2 className="font-bold">Vendas por dia</h2>
-          <span className="text-xs text-slate-500">Valor total dos pedidos pagos (R$)</span>
+          <span className="text-xs text-slate-500">
+            Valor total dos pedidos pagos (R$){r.porCanal.length > 0 && ` · ${r.porCanal.map((c) => `${label(c.canal)} ${money(c.valor)}`).join(" · ")}`}
+          </span>
         </div>
-        <BarChart data={porDia} />
+        <BarChart data={r.porDia} />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.3fr_1fr]">
@@ -91,21 +93,19 @@ export default async function Painel({ searchParams }: PageProps<"/admin">) {
                 <tr><th>Saída</th><th>Linha</th><th>Status</th><th>Lotação</th></tr>
               </thead>
               <tbody>
-                {proximas.map((v) => {
-                  const oc = ocupacaoViagem(v);
-                  return (
-                    <tr key={v.id}>
-                      <td>
-                        <Link href={`/admin/viagens/${v.id}`} className="font-semibold text-rio-700 hover:underline">
-                          <span>{weekday(v.partida)}</span> {dateShort(v.partida)} · {time(v.partida)}
-                        </Link>
-                      </td>
-                      <td className="whitespace-nowrap">{linha(v.linhaId).nome}</td>
-                      <td><Badge status={v.status} /></td>
-                      <td><OccupancyBar pct={oc.pct} /></td>
-                    </tr>
-                  );
-                })}
+                {proximas.length === 0 && (
+                  <tr><td colSpan={4} className="text-center text-sm text-slate-500">Nenhuma viagem programada.</td></tr>
+                )}
+                {proximas.map(({ viagem: v, pct, ocupados, capacidade }) => (
+                  <tr key={v.id}>
+                    <td className="whitespace-nowrap font-semibold text-slate-800">
+                      <span>{weekday(v.partida)}</span> {dateShort(v.partida)} · {time(v.partida)}
+                    </td>
+                    <td className="whitespace-nowrap">{nomeLinha(v.linhaId)}</td>
+                    <td><Badge status={v.status} /></td>
+                    <td title={`${ocupados} de ${capacidade} no trecho mais cheio`}><OccupancyBar pct={pct} /></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -118,15 +118,16 @@ export default async function Painel({ searchParams }: PageProps<"/admin">) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-rio-50 p-4">
-              <p className="text-2xl font-bold text-rio-800">{encPend.filter((e) => e.status === "RECEBIDA").length}</p>
+              <p className="text-2xl font-bold text-rio-800">{encPend.noPorto}</p>
               <p className="text-xs text-rio-700">no porto p/ embarcar</p>
             </div>
             <div className="rounded-xl bg-amber-50 p-4">
-              <p className="text-2xl font-bold text-amber-800">{encPend.filter((e) => e.status === "DISPONIVEL_RETIRADA").length}</p>
+              <p className="text-2xl font-bold text-amber-800">{encPend.retirada}</p>
               <p className="text-xs text-amber-700">aguardando retirada</p>
             </div>
           </div>
           <h3 className="mt-6 mb-2 text-sm font-bold">Últimos pedidos</h3>
+          {ultimos.length === 0 && <p className="text-sm text-slate-500">Nenhum pedido ainda.</p>}
           <ul className="divide-y divide-slate-100">
             {ultimos.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">

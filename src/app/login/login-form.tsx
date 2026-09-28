@@ -15,7 +15,7 @@ export function LoginForm() {
 
   const mensagemParamErro =
     urlErro === "link_invalido"
-      ? "O link de acesso utilizado é inválido ou já expirou. Solicite um novo link abaixo."
+      ? "Esse link de acesso já foi usado ou venceu. Peça ao administrador um link novo (Usuários → Reenviar convite)."
       : urlErro === "link_expirado"
       ? "Seu link de acesso expirou. Solicite uma nova recuperação de senha."
       : null;

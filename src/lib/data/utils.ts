@@ -7,6 +7,7 @@ import { assentosOcupados, viagensAdmin, viagem } from "./viagens";
 import { festivaisNoSite } from "./festivais";
 import type { Configuracao, TipoPassageiro, Viagem, Festival, Passagem } from "../types";
 import { createClient } from "../supabase/server";
+import { taxaEmbarqueTrecho } from "./precos";
 import { mapPassagem } from "./map";
 
 export async function paradaInfo(linhaId: string, ordem: number) {
@@ -41,11 +42,11 @@ export async function passageirosPorSegmento(v: Viagem) {
   const cont = new Array(l.paradas.length - 1).fill(0);
   
   const supabase = await createClient();
-  const { data: pData } = await supabase.from("passagens" as any).select("*").eq("viagem_id", v.id).neq("status", "CANCELADA");
-  const data = pData as any[] | null;
+  const { data } = await supabase.from("passagens").select("*").eq("viagem_id", v.id).neq("status", "CANCELADA");
   if (!data) return cont;
   
-  const ativos = data.map(mapPassagem).filter(p => true); // Assume active for now
+  // Canceladas ficam de fora na consulta; reservas vencidas viram CANCELADA a cada minuto (cron expirar-reservas)
+  const ativos = data.map(mapPassagem);
   
   for (const p of ativos) {
     for (let s = p.origemOrdem; s < p.destinoOrdem; s++) cont[s]++;
@@ -71,8 +72,7 @@ export async function tarifaViagem(v: Viagem, origem: number, destino: number) {
   
   // get festival da viagem
   const supabase = await createClient();
-  const { data: fData } = await supabase.from("festival_viagens" as any).select("festival_id").eq("viagem_id", v.id).maybeSingle();
-  const data = fData as any;
+  const { data } = await supabase.from("festival_viagens").select("festival_id").eq("viagem_id", v.id).maybeSingle();
   if (data) {
     const allFestivais = await festivaisNoSite(new Date(0));
     const f = allFestivais.find(x => x.id === data.festival_id);
@@ -119,7 +119,7 @@ export async function opcoesFestival(f: Festival, agora = new Date()) {
         saida: await horarioParada(v, o),
         chegada: await horarioParada(v, d),
         valor: await tarifaViagem(v, o, d),
-        taxa: pOrigem.taxaEmbarque,
+        taxa: await taxaEmbarqueTrecho(l.id, o, d, pOrigem.taxaEmbarque),
         livres: await lugaresLivres(v, o, d),
         de,
         para,
@@ -141,9 +141,8 @@ export async function opcoesFestival(f: Festival, agora = new Date()) {
 
 export async function comodosDaEmbarcacao(id: string) {
   const supabase = await createClient();
-  const { data: cData } = await supabase.from("comodos" as any).select("*").eq("embarcacao_id", id);
-  const data = cData as any[] | null;
-  return data || [];
+  const { data } = await supabase.from("comodos").select("id, nome, acrescimo, cor").eq("embarcacao_id", id);
+  return (data ?? []).map((c) => ({ ...c, acrescimo: Number(c.acrescimo) }));
 }
 
 export async function acrescimosEmbarcacao(embarcacaoId: string): Promise<Record<string, number>> {
@@ -194,7 +193,7 @@ export const getConfig = cache(async (): Promise<Configuracao> => {
   const supabase = await createClient();
   const [{ data: emp }, { data: descontos }, { data: interna }, { data: bilhete }] = await Promise.all([
     supabase.from("empresa_publica").select("*").limit(1).maybeSingle(),
-    supabase.from("descontos_tipo_passageiro").select("tipo,percentual"),
+    supabase.from("descontos_tipo_passageiro").select("*"),
     // Só o usuário logado da empresa lê estas duas; para o visitante, valem os padrões
     supabase.from("empresas").select("multa_cancelamento_pct,horas_cancelamento_sem_multa,taxa_sistema_pct").limit(1).maybeSingle(),
     supabase.from("configuracoes_bilhete" as never).select("*").limit(1).maybeSingle(),
@@ -205,8 +204,10 @@ export const getConfig = cache(async (): Promise<Configuracao> => {
     ? (e.whatsapps as { cidade: string; numero: string }[]).map((w) => ({ ...w, link: `55${String(w.numero).replace(/\D/g, "")}` }))
     : p.empresa.whatsapps;
   const desc = { ...p.valores.descontos } as Record<TipoPassageiro, number>;
-  for (const d of (descontos ?? []) as { tipo: string; percentual: number }[]) {
+  const isentosTaxa = { INTEIRA: false, CRIANCA: false, COLO: true, IDOSO: false, ESTUDANTE: false, PCD: false } as Record<TipoPassageiro, boolean>;
+  for (const d of (descontos ?? []) as { tipo: string; percentual: number; isento_taxa?: boolean }[]) {
     if (d.tipo in desc) desc[d.tipo as TipoPassageiro] = Number(d.percentual) / 100;
+    if (d.tipo in isentosTaxa && typeof d.isento_taxa === "boolean") isentosTaxa[d.tipo as TipoPassageiro] = d.isento_taxa;
   }
   const v = (interna ?? {}) as Record<string, unknown>;
   const b = (bilhete ?? null) as Record<string, unknown> | null;
@@ -224,6 +225,7 @@ export const getConfig = cache(async (): Promise<Configuracao> => {
     },
     valores: {
       descontos: desc,
+      isentosTaxa,
       multaCancelamentoPct: v.multa_cancelamento_pct != null ? Number(v.multa_cancelamento_pct) : p.valores.multaCancelamentoPct,
       horasCancelamentoSemMulta: v.horas_cancelamento_sem_multa != null ? Number(v.horas_cancelamento_sem_multa) : p.valores.horasCancelamentoSemMulta,
       taxaSistemaPct: v.taxa_sistema_pct != null ? Number(v.taxa_sistema_pct) : p.valores.taxaSistemaPct,

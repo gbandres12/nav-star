@@ -65,6 +65,7 @@ export async function criarPedidoBalcao(payload: {
   compradorEmail?: string;
   compradorTelefone: string;
   metodoPagamento?: string;
+  convenioId?: string;
   passageiros: Array<{
     nome: string;
     documento: string;
@@ -83,6 +84,7 @@ export async function criarPedidoBalcao(payload: {
       comprador_email: payload.compradorEmail,
       comprador_telefone: payload.compradorTelefone,
       metodo_pagamento: payload.metodoPagamento || "DINHEIRO",
+      convenio_id: payload.convenioId || null,
       passageiros: payload.passageiros.map((p) => ({
         nome: p.nome,
         documento: p.documento,
@@ -267,6 +269,23 @@ export async function pedidoCompleto(codigo: string): Promise<PedidoPublico | nu
       destinoSigla: texto(p.destinoSigla),
     })),
   };
+}
+
+/** Soma uma via impressa às passagens do pedido (só perfis de balcão; o banco confere) */
+export async function registrarImpressao(codigo: string) {
+  const supabase = (await createClient()) as unknown as DynamicRpcClient;
+  const { error } = await supabase.rpc("registrar_impressao", { p_codigo: codigo.toUpperCase().trim() });
+  return error ? { ok: false as const, erro: error.message } : { ok: true as const };
+}
+
+/**
+ * Vias já impressas de cada passagem. Só a equipe logada enxerga (RLS de passagens); para o passageiro o mapa vem
+ * vazio e o bilhete dele nunca sai marcado como 2ª via.
+ */
+export async function viasImpressas(pedidoId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase.from("passagens").select("id, impressoes").eq("pedido_id", pedidoId);
+  return new Map((data ?? []).map((p) => [p.id, Number(p.impressoes) || 0]));
 }
 
 /** Cliente avisou que pagou: o banco segura a reserva até a conferência */

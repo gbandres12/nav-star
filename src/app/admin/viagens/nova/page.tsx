@@ -5,12 +5,13 @@ import { PageHeader } from "@/components/ui";
 import { viagemAvulsaAction } from "@/lib/admin-actions";
 import { localDayKey } from "@/lib/format";
 import { garantirAcesso } from "@/lib/sessao";
-import { db } from "@/lib/store";
+import { embarcacoes as listarEmbarcacoes, linhas as listarLinhas } from "@/lib/data/catalogo";
 
 export const metadata = { title: "Viagem avulsa" };
 
 export default async function NovaViagem() {
   await garantirAcesso("/admin/linhas");
+  const [linhas, embarcacoes] = await Promise.all([listarLinhas(), listarEmbarcacoes()]);
   const amanha = localDayKey(new Date(new Date().getTime() + 86_400_000));
   return (
     <>
@@ -21,12 +22,12 @@ export default async function NovaViagem() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo label="Linha" className="sm:col-span-2">
               <select name="linhaId" required className="input">
-                {db().linhas.filter((l) => l.ativa).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                {linhas.filter((l) => l.ativa).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
               </select>
             </Campo>
             <Campo label="Embarcação" className="sm:col-span-2">
               <select name="embarcacaoId" required className="input">
-                {db().embarcacoes.filter((e) => e.status === "ATIVA").map((e) => <option key={e.id} value={e.id}>{e.nome} · {e.assentoLivre ? `assento livre, ${e.capacidadePassageiros}` : e.assentos.length} lugares</option>)}
+                {embarcacoes.filter((e) => e.status === "ATIVA").map((e) => <option key={e.id} value={e.id}>{e.nome} · {e.assentos.length} poltronas, lotação {e.capacidadePassageiros}</option>)}
               </select>
             </Campo>
             <Campo label="Data da saída"><input name="dia" type="date" required min={amanha} defaultValue={amanha} className="input" /></Campo>

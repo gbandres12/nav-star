@@ -45,6 +45,15 @@ export async function salvarTarifasAction(_: Estado, form: FormData): Promise<Es
   return concluir(await precos.salvarTarifas(s("linhaId"), valores), "Tabela de preços salva. O site já usa os valores novos.", "/");
 }
 
+export async function salvarTaxasTrechoAction(_: Estado, form: FormData): Promise<Estado> {
+  const bloqueio = await soAdmin();
+  if (bloqueio) return bloqueio;
+  const { s, n } = leitor(form);
+  const valores: Record<string, number | null> = {};
+  for (const k of form.keys()) if (/^taxa-\d+-\d+$/.test(k)) valores[k.slice(5)] = s(k) === "" ? null : n(k);
+  return concluir(await precos.salvarTaxasTrecho(s("linhaId"), valores), "Taxas por trecho salvas. Vendas novas usam os valores atualizados.", "/", "/admin/vender");
+}
+
 export async function salvarCidadeAction(_: Estado, form: FormData): Promise<Estado> {
   const bloqueio = await soAdmin();
   if (bloqueio) return bloqueio;
@@ -63,10 +72,11 @@ export async function salvarPortoAction(_: Estado, form: FormData): Promise<Esta
 export async function salvarValoresAction(_: Estado, form: FormData): Promise<Estado> {
   const bloqueio = await soAdmin();
   if (bloqueio) return bloqueio;
-  const { n } = leitor(form);
-  const tipos: TipoPassageiro[] = ["INTEIRA", "CRIANCA", "IDOSO", "ESTUDANTE", "PCD"];
+  const { n, b } = leitor(form);
+  const tipos: TipoPassageiro[] = ["INTEIRA", "CRIANCA", "IDOSO", "ESTUDANTE", "PCD", "COLO"];
   const descontos = Object.fromEntries(tipos.map((t) => [t, (n(`desc-${t}`) || 0) / 100])) as Record<TipoPassageiro, number>;
-  const r1 = await precos.salvarDescontos(descontos);
+  const isentosTaxa = Object.fromEntries(tipos.map((t) => [t, t === "COLO" || b(`taxa-${t}`)])) as Record<TipoPassageiro, boolean>;
+  const r1 = await precos.salvarDescontos(descontos, isentosTaxa);
   if (!r1.ok) return { erro: r1.erro };
   const regras = { multaCancelamentoPct: n("multaCancelamentoPct") || 0, horasCancelamentoSemMulta: n("horasCancelamentoSemMulta") || 0, taxaSistemaPct: n("taxaSistemaPct") || 0 };
   if (!(regras.multaCancelamentoPct >= 0 && regras.multaCancelamentoPct <= 100)) return { erro: "Multa entre 0% e 100%." };

@@ -1,4 +1,6 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
 import { createClient } from "../supabase/server";
 import { uuidCidade } from "./catalogo";
 import type { Configuracao, Linha, TipoPassageiro } from "../types";
@@ -75,14 +77,59 @@ export async function salvarPorto(d: { id?: string; cidadeId: string; nome: stri
 
 // ─── Descontos por tipo de passageiro ──────────────────────────
 
+export type TaxaTrecho = { linhaId: string; origemOrdem: number; destinoOrdem: number; valor: number; ativa: boolean };
+
+export const todasTaxasTrecho = cache(async (): Promise<TaxaTrecho[]> => {
+  const supabase = (await createClient()) as unknown as SupabaseClient;
+  const { data, error } = await supabase.from("taxas_embarque_trecho")
+    .select("linha_id,origem_ordem,destino_ordem,valor,ativa").eq("ativa", true);
+  if (error) throw new Error(`Não foi possível carregar as taxas por trecho: ${error.message}`);
+  return (data ?? []).map((r) => ({ linhaId: r.linha_id, origemOrdem: r.origem_ordem, destinoOrdem: r.destino_ordem, valor: Number(r.valor), ativa: r.ativa }));
+});
+
+export async function taxasTrecho(linhaId: string): Promise<TaxaTrecho[]> {
+  return (await todasTaxasTrecho()).filter((t) => t.linhaId === linhaId);
+}
+
+export async function taxaEmbarqueTrecho(linhaId: string, origemOrdem: number, destinoOrdem: number, taxaPorto: number): Promise<number> {
+  const taxa = (await todasTaxasTrecho()).find((t) => t.linhaId === linhaId && t.origemOrdem === origemOrdem && t.destinoOrdem === destinoOrdem);
+  return taxa?.valor ?? taxaPorto;
+}
+
+export async function salvarTaxasTrecho(linhaId: string, valores: Record<string, number | null>): Promise<Resultado> {
+  const empresaId = await empresaDoUsuario();
+  if (!empresaId) return falha("Empresa do usuário não encontrada.");
+  const supabase = (await createClient()) as unknown as SupabaseClient;
+  const { data: paradas, error: erroParadas } = await supabase.from("paradas_linha").select("ordem").eq("linha_id", linhaId);
+  if (erroParadas || !paradas?.length) return falha("Linha não encontrada.");
+  const ordens = new Set(paradas.map((p) => p.ordem));
+  const { data: atuais, error: erroAtuais } = await supabase.from("taxas_embarque_trecho")
+    .select("origem_ordem,destino_ordem,valor").eq("linha_id", linhaId);
+  if (erroAtuais) return falha(erroAtuais.message);
+  const anteriores = new Map((atuais ?? []).map((r) => [`${r.origem_ordem}-${r.destino_ordem}`, Number(r.valor)]));
+  const rows = [] as { empresa_id: string; linha_id: string; origem_ordem: number; destino_ordem: number; valor: number; ativa: boolean }[];
+  for (const [chave, valor] of Object.entries(valores)) {
+    const [origem, destino] = chave.split("-").map(Number);
+    if (!ordens.has(origem) || !ordens.has(destino) || origem >= destino) return falha(`Trecho inválido: ${chave}.`);
+    if (valor == null && !anteriores.has(chave)) continue;
+    if (valor != null && (!Number.isFinite(valor) || valor < 0)) return falha(`Taxa inválida: ${chave}.`);
+    rows.push({ empresa_id: empresaId, linha_id: linhaId, origem_ordem: origem, destino_ordem: destino,
+      valor: round2(valor ?? anteriores.get(chave)!), ativa: valor != null });
+  }
+  if (!rows.length) return { ok: true };
+  const { data, error } = await supabase.from("taxas_embarque_trecho").upsert(rows, { onConflict: "linha_id,origem_ordem,destino_ordem" }).select("id");
+  if (error) return falha(error.message);
+  return data?.length === rows.length ? { ok: true } : falha("Sem permissão para salvar todas as taxas por trecho.");
+}
+
 /** `descontos` em fração (0.5 = 50%). Precisa da migração …0020 (policy de UPDATE para ADMIN). */
-export async function salvarDescontos(descontos: Partial<Record<TipoPassageiro, number>>): Promise<Resultado> {
+export async function salvarDescontos(descontos: Partial<Record<TipoPassageiro, number>>, isentosTaxa?: Partial<Record<TipoPassageiro, boolean>>): Promise<Resultado> {
   const supabase = await createClient();
   for (const [tipo, frac] of Object.entries(descontos)) {
     if (!(frac! >= 0 && frac! <= 1)) return falha("Descontos devem ficar entre 0% e 100%.");
     const r = await supabase
       .from("descontos_tipo_passageiro")
-      .update({ percentual: round2(frac! * 100) })
+      .update({ percentual: round2(frac! * 100), ...(isentosTaxa ? { isento_taxa: !!isentosTaxa[tipo as TipoPassageiro] } : {}) } as never)
       .eq("tipo", tipo as never)
       .select("tipo");
     if (r.error) return falha(r.error.message);
@@ -128,7 +175,7 @@ export async function salvarEmpresa(e: Configuracao["empresa"]): Promise<Resulta
   return semPermissao(r.data?.length, "os dados da empresa") ?? { ok: true };
 }
 
-export async function salvarRegrasValores(v: Omit<Configuracao["valores"], "descontos">): Promise<Resultado> {
+export async function salvarRegrasValores(v: Omit<Configuracao["valores"], "descontos" | "isentosTaxa">): Promise<Resultado> {
   const id = await empresaDoUsuario();
   if (!id) return falha("Empresa do usuário não encontrada.");
   const supabase = await createClient();

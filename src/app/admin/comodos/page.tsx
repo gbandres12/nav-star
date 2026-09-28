@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ComodoForm } from "@/components/admin/comodo-form";
 import { Badge, PageHeader } from "@/components/ui";
 import { garantirAcesso } from "@/lib/sessao";
-import { comodosDaEmbarcacao, db } from "@/lib/store";
+import { embarcacoes as listarEmbarcacoes } from "@/lib/data/catalogo";
+import { comodos as listarComodos } from "@/lib/data/frota";
 import { money } from "@/lib/format";
 
 export const metadata = { title: "Cômodos" };
@@ -11,26 +12,28 @@ export default async function Comodos({ searchParams }: PageProps<"/admin/comodo
   await garantirAcesso("/admin/comodos");
   const sp = await searchParams;
   const filtro = typeof sp.embarcacao === "string" ? sp.embarcacao : "";
-  const embarcacoes = db().embarcacoes.map(({ id, nome }) => ({ id, nome }));
+  const [todas, todosComodos] = await Promise.all([listarEmbarcacoes(), listarComodos()]);
+  const embarcacoes = todas.map(({ id, nome }) => ({ id, nome }));
   return (
     <>
       <PageHeader
         title="Cômodos"
-        subtitle="Tipos de acomodação de cada embarcação. O acréscimo soma ao preço do trecho na venda."
+        subtitle="Tipos de acomodação de cada embarcação (legenda do mapa). Acréscimo de preço por cômodo ainda não é cobrado na venda."
       />
       <div className="card mb-6 p-5">
         <h2 className="mb-3 font-bold">Novo cômodo</h2>
         <ComodoForm embarcacoes={embarcacoes} embarcacaoId={filtro || embarcacoes[0]?.id} />
       </div>
       <div className="space-y-6">
-        {db().embarcacoes.filter((e) => !filtro || e.id === filtro).map((e) => (
+        {todas.filter((e) => !filtro || e.id === filtro).map((e) => (
           <section key={e.id} className="card overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 p-5">
               <h2 className="font-bold">{e.nome}</h2>
               <Link href={`/admin/embarcacoes/${e.id}`} className="text-sm font-semibold text-rio-700 hover:underline">Editar mapa</Link>
             </div>
             <ul className="divide-y divide-slate-100">
-              {comodosDaEmbarcacao(e.id).map((c) => (
+              {todosComodos.filter((c) => c.embarcacaoId === e.id).length === 0 && <li className="p-5 text-sm text-slate-500">Nenhum cômodo cadastrado.</li>}
+              {todosComodos.filter((c) => c.embarcacaoId === e.id).map((c) => (
                 <li key={c.id} className="p-5">
                   <details>
                     <summary className="flex cursor-pointer flex-wrap items-center gap-3">

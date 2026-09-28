@@ -11,17 +11,17 @@ import type { Assento, CanalVenda, MetodoPagamento, TipoPassageiro } from "@/lib
 
 const TIPOS: { v: TipoPassageiro; l: string }[] = [
   { v: "INTEIRA", l: "Inteira" },
-  { v: "CRIANCA", l: "Criança 2–11 anos" },
+  { v: "CRIANCA", l: "Criança" },
   { v: "IDOSO", l: "Idoso 60+" },
   { v: "ESTUDANTE", l: "Estudante" },
   { v: "PCD", l: "PCD" },
-  { v: "COLO", l: "Criança de colo (até 2 anos)" },
+  { v: "COLO", l: "Criança de colo" },
 ];
 // Criança de colo: não ocupa poltrona nem paga taxa de embarque, mas conta na lotação da lancha
 const ehColo = (x: { tipo: TipoPassageiro }) => x.tipo === "COLO";
 const rotuloDesconto = (d: number) => (d >= 1 ? " (gratuidade)" : d > 0 ? ` (${Math.round(d * 100)}%)` : "");
 
-export type ConvenioOpcao = { id: string; nome: string; descontoPercentual: number; faturado: boolean };
+export type ConvenioOpcao = { id: string; nome: string; descontoPercentual: number; faturado: boolean; tarifaEspecial?: number };
 
 type Props = {
   viagemId: string;
@@ -36,6 +36,7 @@ type Props = {
   vendedorId?: string;
   resumo: React.ReactNode;
   descontos: Record<TipoPassageiro, number>; // 0.5 = 50%
+  isentosTaxa: Record<TipoPassageiro, boolean>;
   acrescimos: Record<string, number>; // acréscimo do cômodo por poltrona
   comodos?: Record<string, { nome: string; cor: string }>; // cômodo de cada poltrona (legenda do mapa)
   convenios?: ConvenioOpcao[]; // só balcão
@@ -91,21 +92,23 @@ export function BookingFlow(p: Props) {
     setSeq(seq + 1);
   }
 
-  // Mesma regra do servidor (store.precoPassagem): tarifa + cômodo, com o maior desconto entre tipo e convênio.
+  // Desconto do passageiro sempre parte da tabela; tarifa de convênio é outro teto para a passagem.
   // No automático o sistema escolhe primeiro poltronas sem acréscimo.
   const itens = pax.map((x) => {
     const acrescimo = modo === "mapa" && x.assentoId ? (p.acrescimos[x.assentoId] ?? 0) : 0;
     const desc = Math.min(1, Math.max(p.descontos[x.tipo] ?? 0, (conv?.descontoPercentual ?? 0) / 100));
-    return { key: x.key, colo: ehColo(x), assentoId: modo === "mapa" ? x.assentoId : undefined, valor: Math.round((p.valor + acrescimo) * (1 - desc) * 100) / 100, acrescimo };
+    const tarifa = Math.min(p.valor * (1 - desc), conv?.tarifaEspecial ?? Infinity);
+    return { key: x.key, colo: ehColo(x), assentoId: modo === "mapa" ? x.assentoId : undefined, valor: Math.round((tarifa + acrescimo) * 100) / 100, acrescimo };
   });
   const subtotal = itens.reduce((s, i) => s + i.valor, 0);
-  const taxas = p.taxa * pax.filter((x) => !ehColo(x)).length;
+  const taxas = p.taxa * pax.filter((x) => !p.isentosTaxa[x.tipo]).length;
   const total = subtotal + taxas;
-  const podeTerAcrescimo = modo === "auto" && pax.length > p.livresSemAcrescimo;
+  const podeTerAcrescimo = modo === "auto" && pax.filter((x) => !ehColo(x)).length > p.livresSemAcrescimo;
 
   function submit() {
     setErro(undefined);
     if (!pax.length) return setErro("Adicione pelo menos um passageiro.");
+    if (podeTerAcrescimo) return setErro("Escolha as poltronas no mapa para conferir o valor exato antes da emissão.");
     if (pax.filter(ehColo).length > pax.filter((x) => !ehColo(x)).length) return setErro("Cada criança de colo precisa de um adulto com poltrona no mesmo pedido.");
     if (modo === "mapa" && pax.some((x) => !x.assentoId && !ehColo(x))) return setErro("Escolha uma poltrona no mapa para cada passageiro, ou use “Sem escolher poltrona”.");
     const faltando = pax.some((x) => x.nome.trim().length < 3 || x.documento.replace(/\D/g, "").length < 5);
@@ -124,7 +127,7 @@ export function BookingFlow(p: Props) {
         metodo: conv?.faturado ? "FATURADO" : metodo,
         convenioId: convenioId || undefined,
         comprador: balcao
-          ? { nome: comprador.nome || pax[0].nome, telefone: comprador.telefone || "-", email: comprador.email }
+          ? { nome: comprador.nome || pax[0].nome, telefone: comprador.telefone, email: comprador.email } // telefone opcional no balcão
           : comprador,
         passageiros: pax.map(({ assentoId, nome, documento, tipo }) => ({ assentoId: modo === "mapa" && tipo !== "COLO" ? assentoId : undefined, nome, documento, tipo })),
       });
@@ -270,7 +273,7 @@ export function BookingFlow(p: Props) {
               <select className="input" value={convenioId} onChange={(e) => setConvenioId(e.target.value)}>
                 <option value="">Sem convênio</option>
                 {p.convenios.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nome} · −{c.descontoPercentual}%{c.faturado ? " · faturado" : ""}</option>
+                  <option key={c.id} value={c.id}>{c.nome}{c.tarifaEspecial != null ? ` · tarifa ${money(c.tarifaEspecial)}` : ` · −${c.descontoPercentual}%`}{c.faturado ? " · faturado" : ""}</option>
                 ))}
               </select>
             </div>
@@ -330,7 +333,7 @@ export function BookingFlow(p: Props) {
             {modo === "auto" && !p.assentoLivre && (
               <p className="text-xs text-slate-500">
                 Poltronas escolhidas pelo sistema na confirmação; os números saem no bilhete.
-                {podeTerAcrescimo && " Restam poucas poltronas sem acréscimo: o valor final pode mudar e aparece antes do pagamento."}
+                {podeTerAcrescimo && " Restam poucas poltronas sem acréscimo: escolha no mapa para conferir o total."}
               </p>
             )}
             {balcao && metodo === "PIX" && !conv?.faturado && total > 0 && (

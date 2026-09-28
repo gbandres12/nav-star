@@ -5,7 +5,8 @@ import { EditorMapa } from "@/components/admin/editor-mapa";
 import { EmbarcacaoForm } from "@/components/admin/embarcacao-form";
 import { Badge, PageHeader } from "@/components/ui";
 import { garantirAcesso } from "@/lib/sessao";
-import { capacidade, comodosDaEmbarcacao, db } from "@/lib/store";
+import { embarcacao as buscarEmbarcacao } from "@/lib/data/catalogo";
+import { comodos as listarComodos } from "@/lib/data/frota";
 import { money } from "@/lib/format";
 
 export const metadata = { title: "Embarcação" };
@@ -13,13 +14,13 @@ export const metadata = { title: "Embarcação" };
 export default async function EditarEmbarcacao({ params }: PageProps<"/admin/embarcacoes/[id]">) {
   await garantirAcesso("/admin/embarcacoes");
   const { id } = await params;
-  const e = db().embarcacoes.find((x) => x.id === id);
+  const e = await buscarEmbarcacao(id);
   if (!e) notFound();
-  const cms = comodosDaEmbarcacao(e.id);
+  const cms = await listarComodos(e.id);
   return (
     <>
       <Link href="/admin/embarcacoes" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-rio-700"><ChevronLeft size={16} /> Embarcações</Link>
-      <PageHeader title={e.nome} subtitle={<span className="flex items-center gap-2">{e.assentoLivre ? `Assento livre · ${capacidade(e)} lugares` : `${e.assentos.length} poltronas`} <Badge status={e.status} /></span>} />
+      <PageHeader title={e.nome} subtitle={<span className="flex items-center gap-2">{`${e.assentos.length} poltronas · lotação ${e.capacidadePassageiros}`} <Badge status={e.status} /></span>} />
 
       <div className="card p-6">
         <h2 className="mb-4 font-bold">Dados da embarcação</h2>
@@ -31,7 +32,11 @@ export default async function EditarEmbarcacao({ params }: PageProps<"/admin/emb
           <h2 className="font-bold">Mapa de poltronas</h2>
           <p className="text-sm text-slate-500">Poltronas com passagem vendida para viagens futuras não podem ser removidas.</p>
         </div>
-        {e.assentoLivre && <p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Esta embarcação vende em <strong>assento livre</strong>: o mapa abaixo não é usado na venda. Para numerar as poltronas, desmarque “Assento livre” nos dados acima.</p>}
+        {e.assentos.length > e.capacidadePassageiros && (
+          <p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+            O mapa tem {e.assentos.length} poltronas, mas a lotação cadastrada é {e.capacidadePassageiros}: a venda para quando atinge a lotação.
+          </p>
+        )}
         <EditorMapa embarcacaoId={e.id} assentos={e.assentos} colunasIniciais={e.colunasMapa} comodos={cms.filter((c) => c.ativo).map(({ id, nome, cor, acrescimo }) => ({ id, nome, cor, acrescimo }))} />
       </div>
 

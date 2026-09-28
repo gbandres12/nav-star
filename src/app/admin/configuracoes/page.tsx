@@ -65,18 +65,22 @@ function Empresa({ e }: { e: Configuracao["empresa"] }) {
 type Hist = Awaited<ReturnType<typeof historicoDescontos>>;
 
 function Valores({ v, historico }: { v: Configuracao["valores"]; historico: Hist }) {
-  const tipos: TipoPassageiro[] = ["INTEIRA", "CRIANCA", "IDOSO", "ESTUDANTE", "PCD"];
+  const tipos: TipoPassageiro[] = ["INTEIRA", "CRIANCA", "IDOSO", "ESTUDANTE", "PCD", "COLO"];
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,48rem)_1fr]">
       <div className="card p-6">
         <ActionForm action={salvarValoresAction}>
           <h2 className="mb-1 font-bold">Descontos por tipo de passageiro</h2>
-          <p className="mb-3 text-sm text-slate-500">Valem para todas as rotas e só para vendas novas. 100% = gratuidade.</p>
-          <div className="grid gap-3 sm:grid-cols-5">
+          <p className="mb-3 text-sm text-slate-500">O desconto incide sobre a tarifa de tabela, antes da taxa de embarque. Vale para vendas novas.</p>
+          <div className="grid gap-3 sm:grid-cols-3">
             {tipos.map((t) => (
-              <Campo key={t} label={`${label(t)} (%)`}>
-                <input name={`desc-${t}`} type="number" min={0} max={100} step="0.5" defaultValue={Math.round((v.descontos[t] ?? 0) * 1000) / 10} className="input" />
-              </Campo>
+              <div key={t} className="rounded-xl border border-slate-200 p-3">
+                <Campo label={`${label(t)}: desconto (%)`}>
+                  <input name={`desc-${t}`} type="number" min={0} max={100} step="0.5" defaultValue={Math.round((v.descontos[t] ?? 0) * 1000) / 10} className="input" />
+                </Campo>
+                {t === "COLO" ? <p className="mt-2 text-xs text-slate-500">Sempre isento da taxa e sem poltrona.</p> :
+                  <Checkbox name={`taxa-${t}`} label="Isento da taxa de embarque" defaultChecked={v.isentosTaxa[t]} />}
+              </div>
             ))}
           </div>
           <p className="mt-2 text-xs text-slate-500">
