@@ -108,7 +108,7 @@ export async function detalheViagem(id: string) {
     destinoOrdem: p.destino_ordem,
     valor: Number(p.valor),
     assentoId: p.assento_id ?? undefined,
-    assento: p.assento?.codigo ?? "Colo",
+    assento: p.assento?.codigo ?? (p.tipo === "COLO" ? "Colo" : "Livre"),
     pedidoCodigo: p.pedido?.codigo ?? "",
   }));
   return {

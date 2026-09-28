@@ -47,7 +47,7 @@ export default async function PedidoPage({ params }: PageProps<"/pedido/[codigo]
             </>
           ) : (
             <div className="card mx-auto max-w-md p-6 text-center">
-              <h1 className="text-xl font-bold">Poltronas reservadas</h1>
+              <h1 className="text-xl font-bold">Lugares reservados</h1>
               <p className="mt-1 text-3xl font-extrabold text-rio-900">{money(pedido.total)}</p>
               <p className="mt-2 text-sm text-slate-600">Fale com a empresa pelo WhatsApp para receber os dados de pagamento.</p>
               <a className="btn-sol mt-5" href={falarComEmpresa(`Olá! Quero pagar o pedido ${pedido.codigo} (${money(pedido.total)}).`)}>
@@ -64,8 +64,8 @@ export default async function PedidoPage({ params }: PageProps<"/pedido/[codigo]
           <h1 className="mt-3 text-xl font-bold">{pedido.status === "EXPIRADO" ? "Reserva expirada" : "Pedido cancelado"}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {pedido.status === "EXPIRADO"
-              ? "O pagamento não foi confirmado a tempo e as poltronas foram liberadas."
-              : "Este pedido foi cancelado e as poltronas foram liberadas."}
+              ? "O pagamento não foi confirmado a tempo e os lugares foram liberados."
+              : "Este pedido foi cancelado e os lugares foram liberados."}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             <Link href="/viagens" className="btn-sol">Fazer nova busca</Link>

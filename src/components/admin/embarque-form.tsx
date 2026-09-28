@@ -37,7 +37,7 @@ export function EmbarqueForm({ exemplo }: { exemplo?: string }) {
             <p className="text-2xl font-extrabold">{state.mensagem}</p>
             {state.passageiro && (
               <p className="mt-1 text-lg">
-                {state.passageiro} · Poltrona <b>{state.assento}</b>
+                {state.passageiro} · {state.assento === "Livre" ? "Assento livre" : state.assento === "Colo" ? "Criança de colo" : <>Poltrona <b>{state.assento}</b></>}
               </p>
             )}
             {state.viagem && <p className="text-sm opacity-80">Viagem {state.viagem}</p>}

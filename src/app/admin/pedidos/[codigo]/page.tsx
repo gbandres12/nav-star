@@ -107,7 +107,7 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
                     <tr key={x.id}>
                       <td>{x.nome}<p className="text-xs text-slate-500">{label(x.tipo)} · {x.documento}</p></td>
                       <td className="whitespace-nowrap">{x.origemCidade} → {x.destinoCidade}<p className="text-xs text-slate-500">{dateTime(x.saida)}</p></td>
-                      <td>{x.assento === "COLO" ? "Colo" : x.assento}</td>
+                      <td>{x.assento === "COLO" ? "Colo" : x.assento === "LIVRE" ? "Livre" : x.assento}</td>
                       <td className="text-right tabular-nums">{money(x.valor + x.taxaEmbarque)}</td>
                     </tr>
                   ))}
@@ -122,7 +122,7 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
                 <thead><tr><th>Passageiro</th><th>Poltrona</th><th className="text-right">Valor</th></tr></thead>
                 <tbody>
                   {canceladas.map((x) => (
-                    <tr key={x.id}><td>{x.nome}</td><td>{x.assento === "COLO" ? "Colo" : x.assento}</td><td className="text-right tabular-nums">{money(x.valor + x.taxaEmbarque)}</td></tr>
+                    <tr key={x.id}><td>{x.nome}</td><td>{x.assento === "COLO" ? "Colo" : x.assento === "LIVRE" ? "Livre" : x.assento}</td><td className="text-right tabular-nums">{money(x.valor + x.taxaEmbarque)}</td></tr>
                   ))}
                 </tbody>
               </table>

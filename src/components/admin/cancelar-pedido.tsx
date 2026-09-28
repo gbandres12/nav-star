@@ -26,7 +26,7 @@ export function CancelarPedido({ codigo, passagens, regra }: { codigo: string; p
           {passagens.map((p) => (
             <li key={p.id} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
               <span className="flex-1 font-medium">{p.nome}</span>
-              <span className="text-slate-500">{p.assento === "COLO" ? "Colo" : `Poltrona ${p.assento}`}</span>
+              <span className="text-slate-500">{p.assento === "COLO" ? "Colo" : p.assento === "LIVRE" ? "Assento livre" : `Poltrona ${p.assento}`}</span>
               <span className="tabular-nums">{p.valor}</span>
             </li>
           ))}

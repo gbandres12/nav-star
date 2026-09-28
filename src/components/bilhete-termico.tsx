@@ -23,7 +23,8 @@ export function BilheteTermico({
   impressoes?: number;
 }) {
   const saida = new Date(p.saida);
-  const temAssento = p.assento !== "COLO";
+  const colo = p.tipo === "COLO";
+  const numerado = !colo && p.assento !== "LIVRE";
   const cfg = config.bilhete;
   const EMPRESA = config.empresa;
   const segundaVia = impressoes > 0;
@@ -61,12 +62,18 @@ export function BilheteTermico({
 
       <Rule />
 
-      <section className="py-[1mm] text-center">
-        <p className="text-[9px] font-bold">{temAssento ? "POLTRONA" : "CRIANÇA DE COLO"}</p>
-        <p className="mt-0.5 text-[30px] leading-none font-extrabold">{temAssento ? p.assento : "—"}</p>
-      </section>
+      {numerado ? (
+        <section className="py-[1mm] text-center">
+          <p className="text-[9px] font-bold">POLTRONA</p>
+          <p className="mt-0.5 text-[30px] leading-none font-extrabold">{p.assento}</p>
+        </section>
+      ) : colo ? (
+        <section className="py-[1mm] text-center">
+          <p className="text-[9px] font-bold">CRIANÇA DE COLO</p>
+        </section>
+      ) : null}
 
-      <Dashed />
+      {(numerado || colo) && <Dashed />}
 
       <section className="py-[1mm] text-center">
         <p className="text-[8.5px] font-bold">PASSAGEIRO</p>

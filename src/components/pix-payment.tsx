@@ -67,7 +67,7 @@ export function PixPayment({
         <QR value={copiaCola} size={200} />
       </div>
       <p className="mt-3 flex items-center justify-center gap-1.5 text-sm text-amber-700">
-        <Timer size={16} /> Poltronas reservadas por {tempo}
+        <Timer size={16} /> Lugares reservados por {tempo}
       </p>
       <button
         type="button"
@@ -113,7 +113,7 @@ export function PagamentoEmConferencia({ codigo, expiraEm, whatsapp }: { codigo:
       <Loader2 className="mx-auto animate-spin text-rio-600" size={36} />
       <h2 className="mt-3 text-lg font-bold">Pagamento em conferência</h2>
       <p className="mt-1 text-sm text-slate-600">
-        Recebemos seu aviso. Assim que a equipe conferir o PIX, os bilhetes aparecem aqui. Suas poltronas ficam reservadas por mais {tempo}.
+        Recebemos seu aviso. Assim que a equipe conferir o PIX, os bilhetes aparecem aqui. Seus lugares ficam reservados por mais {tempo}.
       </p>
       <a className="btn-ghost mt-5" href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Olá! Enviei o comprovante do pedido ${codigo}.`)}`}>
         <MessageCircle size={16} /> Reenviar comprovante no WhatsApp

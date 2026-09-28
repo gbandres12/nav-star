@@ -196,6 +196,7 @@ export async function salvarEmbarcacaoAction(_: Estado, form: FormData): Promise
     ano: n("ano") || undefined,
     comprimentoM: n("comprimentoM") || undefined,
     observacao: s("observacao"),
+    assentoLivre: form.get("assentoLivre") === "on",
   });
   if (r.ok && !s("id")) {
     revalidatePath("/admin", "layout");

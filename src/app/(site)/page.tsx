@@ -47,10 +47,10 @@ export default async function Home() {
             <ShieldCheck size={14} /> Venda oficial da empresa
           </p>
           <h1 className="max-w-2xl text-4xl leading-[1.1] font-extrabold tracking-tight sm:text-5xl">
-            De Manaus a Santarém <span className="text-rio-400">pelo rio</span>, com a poltrona garantida.
+            De Manaus a Santarém <span className="text-rio-400">pelo rio</span>, com o lugar garantido.
           </h1>
           <p className="mt-4 max-w-xl text-lg text-rio-100">
-            Compre sua passagem de lancha online, escolha a poltrona e embarque com o bilhete com QR Code no celular.
+            Compre sua passagem de lancha online e embarque com o bilhete com QR Code no celular.
           </p>
         </div>
         <svg className="absolute right-0 bottom-0 left-0 h-16 w-full text-[#f5f7fb]" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden>
@@ -226,7 +226,7 @@ export default async function Home() {
       <section className="mx-auto max-w-6xl px-4 py-14">
         <div className="grid gap-6 md:grid-cols-3">
           {[
-            { icon: <Ticket />, t: "Escolha a poltrona", d: "Veja o mapa da lancha e escolha onde vai sentar — janela, corredor ou preferencial." },
+            { icon: <Ticket />, t: "Escolha a viagem", d: "Busque o trecho e a data, informe os passageiros e garanta o seu lugar na lancha." },
             { icon: <Smartphone />, t: "Pague com PIX", d: "QR Code com o valor certo. Depois de conferido o pagamento, o bilhete fica disponível no seu pedido." },
             { icon: <QrCode />, t: "Embarque com QR Code", d: "Apresente o QR Code e um documento com foto no porto. Sem fila no guichê." },
           ].map((x) => (

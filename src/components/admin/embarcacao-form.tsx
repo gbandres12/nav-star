@@ -36,6 +36,15 @@ export function EmbarcacaoForm({ e }: { e?: Embarcacao }) {
           Limite da Capitania, contando quem viaja sem poltrona (criança de colo). A venda de cada trecho para ao atingir este número.
         </p>
       </div>
+      <label className="mt-5 flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm">
+        <input type="checkbox" name="assentoLivre" defaultChecked={e?.assentoLivre ?? true} className="mt-0.5 size-4" />
+        <span>
+          <span className="font-semibold">Assento livre</span>
+          <span className="block text-xs text-slate-500">
+            Sem poltrona numerada: o passageiro senta onde quiser ao embarcar e o bilhete não mostra número. Desmarque quando a venda passar a escolher a poltrona.
+          </span>
+        </span>
+      </label>
     </ActionForm>
   );
 }

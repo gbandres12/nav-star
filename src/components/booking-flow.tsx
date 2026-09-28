@@ -354,7 +354,7 @@ export function BookingFlow(p: Props) {
               {balcao ? (conv?.faturado ? "Emitir (faturado)" : metodo === "PIX" ? "PIX recebido — emitir" : "Confirmar venda") : "Ir para pagamento"}
               {!pending && <ArrowRight size={18} />}
             </button>
-            {!balcao && <p className="text-center text-xs text-slate-500">Poltronas reservadas por {p.minutosReserva ?? 30} min para você pagar.</p>}
+            {!balcao && <p className="text-center text-xs text-slate-500">Lugares reservados por {p.minutosReserva ?? 30} min para você pagar.</p>}
           </div>
         </div>
       </aside>

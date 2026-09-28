@@ -62,6 +62,7 @@ export type DadosEmbarcacao = {
   ano?: number;
   comprimentoM?: number;
   observacao?: string;
+  assentoLivre?: boolean;
 };
 
 export async function salvarEmbarcacao(d: DadosEmbarcacao): Promise<Resultado<{ id: string }>> {
@@ -82,6 +83,7 @@ export async function salvarEmbarcacao(d: DadosEmbarcacao): Promise<Resultado<{ 
     ano: d.ano || null,
     comprimento_m: d.comprimentoM || null,
     observacao: d.observacao?.trim() || null,
+    ...(d.assentoLivre !== undefined ? { assento_livre: d.assentoLivre } : {}),
   };
 
   if (d.id) {
@@ -100,7 +102,7 @@ export async function salvarEmbarcacao(d: DadosEmbarcacao): Promise<Resultado<{ 
   if (!empresaId) return falha("Seu usuário não está ligado a uma empresa.");
   const { data, error } = await supabase
     .from("embarcacoes")
-    .insert({ ...campos, empresa_id: empresaId, colunas_mapa: 5, assento_livre: false })
+    .insert({ ...campos, empresa_id: empresaId, colunas_mapa: 5, assento_livre: false, ...campos })
     .select("id")
     .single();
   if (error) return falha(error.code === "42501" ? "Só o administrador pode cadastrar embarcações." : error.message);

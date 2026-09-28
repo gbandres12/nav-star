@@ -189,7 +189,7 @@ export type PassagemPublica = {
   valor: number;
   taxaEmbarque: number;
   qrToken: string;
-  assento: string; // código da poltrona ou "COLO"
+  assento: string; // código da poltrona, "COLO" ou "LIVRE" (embarcação sem poltrona numerada)
   embarcacao: string;
   saida: string;
   chegada: string;
@@ -255,7 +255,7 @@ export async function pedidoCompleto(codigo: string): Promise<PedidoPublico | nu
       valor: Number(p.valor),
       taxaEmbarque: Number(p.taxaEmbarque),
       qrToken: texto(p.qrToken),
-      assento: texto(p.assento),
+      assento: p.tipo !== "COLO" && texto(p.assento) === "COLO" ? "LIVRE" : texto(p.assento),
       embarcacao: texto(p.embarcacao),
       saida: texto(p.saida),
       chegada: texto(p.chegada),
