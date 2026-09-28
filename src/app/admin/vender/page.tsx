@@ -18,11 +18,8 @@ export default async function Vender({ searchParams }: PageProps<"/admin/vender"
   const destino = s("destino");
   const data = s("data") ?? localDayKey(new Date());
 
-  // Sem filtro de cidade: lista todos os trechos com saída na data (a mesma busca do site, com lotação por trecho)
-  const pares = cidades
-    .flatMap((o) => cidades.filter((d) => d.id !== o.id).map((d) => [o.id, d.id] as const))
-    .filter(([o, d]) => (!origem || o === origem) && (!destino || d === destino));
-  const encontrados = (await Promise.all(pares.map(([o, d]) => buscarViagens(o, d, data)))).flat();
+  // Uma chamada só: sem filtro de cidade, a busca devolve todos os trechos com saída na data (com lotação por trecho)
+  const encontrados = await buscarViagens(origem ?? "", destino ?? "", data);
   const resultados = (
     await Promise.all(
       encontrados.map(async (r) => {
