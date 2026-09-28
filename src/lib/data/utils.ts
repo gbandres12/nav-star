@@ -12,8 +12,7 @@ import { mapPassagem } from "./map";
 
 export async function paradaInfo(linhaId: string, ordem: number) {
   const allLinhas = await linhas();
-  const l = allLinhas.find(x => x.id === linhaId)!;
-  const parada = l.paradas[ordem];
+  const l = allLinhas.find(x => x.id === linhaId)!;  const parada = l.paradas[ordem];
   const allPortos = await portos();
   const p = allPortos.find(x => x.id === parada.portoId)!;
   const allCidades = await cidades();

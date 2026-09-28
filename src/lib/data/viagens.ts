@@ -25,14 +25,18 @@ type DynamicRpcClient = {
   ) => Promise<{ data: unknown; error: { message: string } | null }>;
 };
 
+// A RPC devolve os dados da viagem aninhados em `viagem`
 type ItemViagemBusca = {
   viagem_id: string;
-  linha_id: string;
-  embarcacao_id: string;
-  partida: string;
-  status: StatusViagem;
-  comandante?: string;
-  vendas_abertas: boolean;
+  viagem: {
+    id: string;
+    linha_id: string;
+    embarcacao_id: string;
+    partida: string;
+    status: StatusViagem;
+    comandante?: string | null;
+    vendas_abertas: boolean;
+  };
   linha_nome: string;
   origem_ordem: number;
   destino_ordem: number;
@@ -66,13 +70,13 @@ export async function buscarViagens(
   const taxasPorTrecho = new Map(taxas.map((t) => [`${t.linhaId}:${t.origemOrdem}:${t.destinoOrdem}`, t.valor]));
   return items.map((item) => ({
     viagem: {
-      id: item.viagem_id,
-      linhaId: item.linha_id,
-      embarcacaoId: item.embarcacao_id,
-      partida: item.partida,
-      status: item.status,
-      comandante: item.comandante || "",
-      vendasAbertas: item.vendas_abertas,
+      id: item.viagem.id,
+      linhaId: item.viagem.linha_id,
+      embarcacaoId: item.viagem.embarcacao_id,
+      partida: item.viagem.partida,
+      status: item.viagem.status,
+      comandante: item.viagem.comandante || "",
+      vendasAbertas: item.viagem.vendas_abertas,
       tripulacao: [],
     },
     linhaNome: item.linha_nome,
@@ -81,7 +85,7 @@ export async function buscarViagens(
     origemHorario: item.saida,
     destinoHorario: item.chegada,
     tarifaBase: Number(item.valor),
-    taxaEmbarque: taxasPorTrecho.get(`${item.linha_id}:${item.origem_ordem}:${item.destino_ordem}`) ?? Number(item.taxa),
+    taxaEmbarque: taxasPorTrecho.get(`${item.viagem.linha_id}:${item.origem_ordem}:${item.destino_ordem}`) ?? Number(item.taxa),
     lugaresLivres: Number(item.livres),
     duracaoMinutos: Number(item.duracao_min),
   }));

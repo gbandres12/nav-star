@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, ShoppingCart } from "lucide-react";
 import { SeatMap } from "@/components/seat-map";
 import { PrintButton } from "@/components/print-button";
-import { Badge, PageHeader, Stat } from "@/components/ui";
+import { Badge, OccupancyBar, PageHeader, Stat } from "@/components/ui";
 import { ViagemControles } from "@/components/admin/viagem-controles";
 import { operadorAtual } from "@/lib/sessao";
 import { embarcacao as buscarEmbarcacao, linha as buscarLinha } from "@/lib/data/catalogo";
@@ -33,6 +33,9 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
   const ativas = d.manifesto.filter((p) => p.status !== "NAO_COMPARECEU");
   const porSegmento = l.paradas.slice(0, -1).map((_, s) => ativas.filter((p) => p.origemOrdem <= s && p.destinoOrdem > s).length);
   const pico = Math.max(0, ...porSegmento);
+  // Quem embarca e desembarca em cada parada: explica por que a lotação muda entre os trechos
+  const embarcamEm = (o: number) => ativas.filter((p) => p.origemOrdem === o).length;
+  const desembarcamEm = (o: number) => ativas.filter((p) => p.destinoOrdem === o).length;
   const cap = e.capacidadePassageiros;
   const nomes = Object.fromEntries(ativas.filter((p) => p.assentoId && p.origemOrdem <= seg && p.destinoOrdem > seg).map((p) => [p.assentoId!, p.nome]));
   const receita = d.manifesto.filter((p) => p.status !== "RESERVADA").reduce((s, p) => s + p.valor, 0);
@@ -70,6 +73,35 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
         <Stat label="Lotação máxima" value={`${cap ? Math.round((pico / cap) * 100) : 0}%`} hint={`${pico} de ${cap} no trecho mais cheio`} />
         <Stat label="Receita de passagens" value={money(receita)} />
         <Stat label="Encomendas" value={d.encomendas.length} hint={`${d.encomendas.reduce((s, x) => s + x.pesoKg, 0).toLocaleString("pt-BR")} kg`} />
+      </div>
+
+      <div className="no-print card mt-6 overflow-x-auto">
+        <div className="p-5 pb-3">
+          <h2 className="font-bold">Lotação por trecho</h2>
+          <p className="text-sm text-slate-500">Passageiros a bordo entre cada parada, contando quem embarca e desembarca no caminho.</p>
+        </div>
+        <table className="table-base">
+          <thead>
+            <tr><th>Trecho</th><th>Saída</th><th className="text-right">Embarcam</th><th className="text-right">Desembarcam</th><th className="text-right">A bordo</th><th className="text-right">Livres</th><th>Ocupação</th></tr>
+          </thead>
+          <tbody>
+            {porSegmento.map((n, i) => (
+              <tr key={i} className={i === seg ? "bg-slate-50" : undefined}>
+                <td className="font-semibold whitespace-nowrap">
+                  <Link href={`/admin/viagens/${v.id}?seg=${i}`} scroll={false} className="hover:text-rio-700 hover:underline">
+                    {paradas[i].cidade.nome} → {paradas[i + 1].cidade.nome}
+                  </Link>
+                </td>
+                <td className="whitespace-nowrap tabular-nums">{dateShort(horarios[i])} {time(horarios[i])}</td>
+                <td className="text-right tabular-nums">{embarcamEm(i)}</td>
+                <td className="text-right tabular-nums">{i === 0 ? "—" : desembarcamEm(i)}</td>
+                <td className="text-right font-bold tabular-nums">{n}</td>
+                <td className="text-right tabular-nums">{Math.max(0, cap - n)}</td>
+                <td><OccupancyBar pct={cap ? Math.min(100, Math.round((n / cap) * 100)) : 0} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <div className="no-print card mt-6 p-5 sm:p-6">

@@ -69,7 +69,10 @@ export const linhas = cache(async (): Promise<Linha[]> => {
     `)
     .order("nome");
 
-  if (error || !rowsLinha) return [];
+  if (error || !rowsLinha) {
+    console.error("[linhas] falha ao carregar:", error?.message);
+    return [];
+  }
 
   return rowsLinha.map((l) =>
     mapLinha(
