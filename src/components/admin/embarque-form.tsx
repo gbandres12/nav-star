@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { CircleCheck, CircleX, Loader2, ScanLine } from "lucide-react";
 import { validarBilhete, type EmbarqueState } from "@/lib/actions";
 
-export function EmbarqueForm({ exemplo }: { exemplo?: string }) {
+export function EmbarqueForm() {
   const [state, action, pending] = useActionState<EmbarqueState, FormData>(validarBilhete, undefined);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -26,7 +26,6 @@ export function EmbarqueForm({ exemplo }: { exemplo?: string }) {
         </div>
         <p className="mt-2 text-xs text-slate-500">
           Use um leitor de QR USB/Bluetooth (funciona como teclado) ou digite o código.
-          {exemplo && <> Teste com <code className="rounded bg-slate-100 px-1">{exemplo}</code>.</>}
         </p>
       </form>
 

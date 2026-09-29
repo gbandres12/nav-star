@@ -297,3 +297,39 @@ export type Festival = {
 };
 
 export type FotoFestival = { id: string; url: string };
+
+export type Db = {
+  cidades: Cidade[];
+  portos: Porto[];
+  embarcacoes: Embarcacao[];
+  linhas: Linha[];
+  viagens: Viagem[];
+  pedidos: Pedido[];
+  passagens: Passagem[];
+  encomendas: Encomenda[];
+  usuarios: Usuario[];
+  agencias: Agencia[];
+  comodos: Comodo[];
+  tripulantes: Tripulante[];
+  convenios: Convenio[];
+  caixas: CaixaSessao[];
+  cancelamentos: Cancelamento[];
+  festivais: Festival[];
+  config: Configuracao;
+};
+
+export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; erro: string };
+
+export type NovoPedidoInput = {
+  viagemId: string;
+  origemOrdem: number;
+  destinoOrdem: number;
+  canal: CanalVenda;
+  comprador: { nome: string; email?: string; telefone: string };
+  // assentoId vazio = o sistema escolhe a poltrona (compra sem marcar assento)
+  passageiros: { assentoId?: string; nome: string; documento: string; tipo: TipoPassageiro }[];
+  metodo: MetodoPagamento;
+  vendedorId?: string;
+  convenioId?: string; // só balcão/agência
+  pagoNoAto?: boolean; // balcão: dinheiro/cartão recebidos na hora
+};

@@ -13,8 +13,9 @@ npm run dev
 - Site de vendas: http://localhost:3000
 - Área da empresa: http://localhost:3000/admin
 
-> **Fase atual: protótipo visual.** Os dados vivem em memória (`src/lib/seed.ts`) e são recriados a cada
-> reinício do servidor. O pagamento PIX é simulado pelo botão "Simular pagamento aprovado".
+> **Dados no Supabase** (Postgres + Auth + RLS). Sem `.env.local` com as chaves do projeto o painel não abre.
+> `src/lib/seed.ts` só alimenta os scripts de `scripts/` (seed de desenvolvimento e carga inicial). O botão
+> "Simular pagamento aprovado" só existe fora de produção, com `PAGAMENTO_SIMULADO=true`.
 
 ## O que já funciona
 
@@ -49,8 +50,9 @@ Em relação ao modelo em papel, entrou um **QR Code**, que é o que o conferent
 prisma/schema.prisma      ← desenho completo do banco (PostgreSQL)
 docs/banco-de-dados.md    ← diagrama e explicação das tabelas
 src/lib/types.ts          ← tipos espelhando o schema
-src/lib/seed.ts           ← dados de exemplo (rota Manaus ↔ Santarém)
-src/lib/store.ts          ← consultas e regras (ocupação, busca, pedidos, embarque)
+src/lib/seed.ts           ← dados de exemplo, só para os scripts (rota Manaus ↔ Santarém)
+src/lib/padroes.ts        ← configuração padrão da empresa e fluxo de encomendas
+src/lib/data/             ← consultas e regras contra o Supabase (tabelas com RLS e RPCs)
 src/lib/actions.ts        ← server actions (compra, pagamento, embarque, encomendas)
 src/app/(site)/           ← e-commerce público
 src/app/admin/            ← painel da empresa

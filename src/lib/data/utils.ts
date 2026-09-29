@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { CONFIG_PADRAO } from "../seed";
+import { CONFIG_PADRAO } from "../padroes";
 import { addMinutes, localDayKey } from "../format";
 import { cidades, portos, linhas, embarcacoes } from "./catalogo";
 import { assentosOcupados, viagensAdmin, viagem } from "./viagens";

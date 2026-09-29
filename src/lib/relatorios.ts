@@ -2,7 +2,7 @@ import "server-only";
 import { date, dateShort, label, localDayKey, manausDate, money, time } from "./format";
 import { RELATORIOS, type SlugRelatorio } from "./relatorios-lista";
 import type { Passagem, Pedido, Viagem, Embarcacao, CaixaSessao } from "./types";
-import type { Db } from "./seed";
+import type { Db } from "./types";
 import { buscarBaseDeDadosParaRelatorios } from "./data/relatorios";
 
 let _db: Db;

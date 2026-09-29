@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
-import { OperadorSwitch } from "@/components/admin/operador-switch";
 import { Sidebar } from "@/components/admin/sidebar";
 import { label } from "@/lib/format";
 import { podeAcessar } from "@/lib/permissoes";
 import { operadorAtual } from "@/lib/sessao";
 import { getConfig } from "@/lib/data/utils";
-import { db } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: { default: "Gestão", template: "%s · Gestão São Tomé" } };
@@ -15,15 +13,11 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const op = await operadorAtual();
   const iniciais = op.nome.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   const empresa = (await getConfig()).empresa;
-  // Seletor de operador do protótipo: só no ambiente local (em produção o operador é quem fez login)
-  const simulador = process.env.NODE_ENV !== "production";
-  const usuarios = simulador ? db().usuarios.filter((u) => u.ativo).map((u) => ({ id: u.id, nome: u.nome, papel: label(u.papel) })) : [];
   return (
     <div className="min-h-screen lg:flex">
       <Sidebar papel={op.papel} />
       <div className="min-w-0 flex-1">
         <header className="no-print flex flex-wrap items-center justify-end gap-3 border-b border-slate-200 bg-white px-4 py-2 lg:h-16 lg:px-8 lg:py-0">
-          {simulador && <OperadorSwitch atual={op.id} usuarios={usuarios} />}
           {podeAcessar(op.papel, "/admin/vender") && (
             <Link href="/admin/vender" className="btn hidden bg-emerald-500 text-white hover:bg-emerald-600 lg:inline-flex">
               <ShoppingCart size={16} /> Vender passagens

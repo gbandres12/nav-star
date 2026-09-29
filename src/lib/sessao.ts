@@ -1,25 +1,14 @@
 import "server-only";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { podeAcessar } from "./permissoes";
-import { db, usuario } from "./store";
 import type { PapelUsuario } from "./types";
 
 import { usuarioAtual } from "./auth";
 
-// Operador atual do painel integrado com Supabase Auth (etapa B8).
-// Prioriza a sessão real do Supabase Auth; se não houver (ex.: dev local), recorre ao cookie simulador.
-export const COOKIE_OPERADOR = "navstar_operador";
-
+// Operador atual: só vale a sessão real do Supabase Auth (server actions podem ser chamadas de qualquer rota, sem passar pelo proxy)
 async function operadorOuNulo() {
-  const realUser = await usuarioAtual();
-  if (realUser?.ativo) return realUser;
-  // Server actions podem ser chamadas de qualquer rota, sem passar pelo proxy: em produção só vale a sessão real
-  if (process.env.NODE_ENV === "production") return null;
-
-  const id = (await cookies()).get(COOKIE_OPERADOR)?.value;
-  const u = usuario(id);
-  return u?.ativo ? u : db().usuarios.find((x) => x.papel === "ADMIN" && x.ativo)!;
+  const u = await usuarioAtual();
+  return u?.ativo ? u : null;
 }
 
 /** Para páginas e rotas: sem sessão, manda para o login */

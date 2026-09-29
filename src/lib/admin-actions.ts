@@ -1,23 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { money } from "./format";
-import { COOKIE_OPERADOR, exigirPapel } from "./sessao";
-import {
-  cancelarPassagens,
-  config,
-  salvarCidade,
-  salvarConfig,
-  salvarHorarios,
-  salvarLinha,
-  salvarPorto,
-  salvarTarifas,
-  usuario,
-  type Resultado,
-} from "./store";
-import type { Assento, Configuracao, FuncaoTripulante, Linha, StatusViagem, TipoPassageiro, PapelUsuario } from "./types";
+import { exigirPapel } from "./sessao";
+import type { Resultado } from "./types";
+import type { Assento, FuncaoTripulante, StatusViagem, PapelUsuario } from "./types";
 import * as frota from "./data/frota";
 import * as convenios from "./data/convenios";
 import * as gestaoViagens from "./data/viagens-gestao";
@@ -56,15 +43,6 @@ function concluir(r: Resultado, ok: string, ...caminhos: string[]): Estado {
   revalidatePath("/admin", "layout");
   for (const c of caminhos) revalidatePath(c);
   return { ok };
-}
-
-// ─── Operador (provisório até o login) ─────────────────────────
-
-export async function trocarOperador(form: FormData) {
-  const id = String(form.get("usuarioId") ?? "");
-  if (usuario(id)?.ativo) (await cookies()).set(COOKIE_OPERADOR, id, { path: "/", sameSite: "lax", httpOnly: true });
-  revalidatePath("/admin", "layout");
-  redirect("/admin");
 }
 
 // ─── Caixa ─────────────────────────────────────────────────────
@@ -162,25 +140,6 @@ export async function viagemAvulsaAction(_: Estado, form: FormData): Promise<Est
 
 // ─── Cadastros ─────────────────────────────────────────────────
 
-export async function salvarCidadeAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const { s } = leitor(form);
-  return concluir(salvarCidade({ nome: s("nome"), uf: s("uf"), sigla: s("sigla") }), "Cidade cadastrada.");
-}
-
-export async function salvarPortoAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const { s, n, b } = leitor(form);
-  const r = salvarPorto({ id: s("id") || undefined, cidadeId: s("cidadeId"), nome: s("nome"), endereco: s("endereco"), taxaEmbarque: n("taxaEmbarque") || 0, ativo: b("ativo") });
-  if (r.ok && !s("id")) {
-    revalidatePath("/admin", "layout");
-    redirect("/admin/portos");
-  }
-  return concluir(r, "Porto salvo.");
-}
-
 export async function salvarEmbarcacaoAction(_: Estado, form: FormData): Promise<Estado> {
   const a = await exigirPapel("ADMIN");
   if (a.erro) return { erro: a.erro };
@@ -240,32 +199,6 @@ export async function salvarTripulanteAction(_: Estado, form: FormData): Promise
     redirect("/admin/tripulantes");
   }
   return concluir(r, "Tripulante salvo.");
-}
-
-export async function salvarLinhaAction(d: { id?: string; nome: string; ativa: boolean; paradas: { portoId: string; minutosDesdeOrigem: number }[] }): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const r = salvarLinha(d);
-  if (r.ok && !d.id) {
-    revalidatePath("/admin", "layout");
-    redirect(`/admin/linhas/${r.id}`);
-  }
-  return concluir(r, "Linha salva. Confira os preços na aba Trechos.", "/", "/viagens");
-}
-
-export async function salvarTarifasAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  const { s, n } = leitor(form);
-  const valores: Record<string, number> = {};
-  for (const k of form.keys()) if (/^t-\d+-\d+$/.test(k)) valores[k.slice(2)] = n(k);
-  return concluir(salvarTarifas(s("linhaId"), valores), "Tabela de preços salva.", "/", "/viagens");
-}
-
-export async function salvarHorariosAction(linhaId: string, horarios: Linha["horarios"]): Promise<Estado> {
-  const a = await exigirPapel(...GESTAO);
-  if (a.erro) return { erro: a.erro };
-  return concluir(salvarHorarios(linhaId, horarios), "Programação semanal salva. Use “Gerar viagens” para criar as saídas.");
 }
 
 export async function salvarConvenioAction(_: Estado, form: FormData): Promise<Estado> {
@@ -366,66 +299,3 @@ export async function registrarProgressoOnboardingAction(
 
 // ─── Configurações ─────────────────────────────────────────────
 
-export async function salvarEmpresaAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel("ADMIN");
-  if (a.erro) return { erro: a.erro };
-  const { s, n } = leitor(form);
-  if (s("nome").length < 3 || s("razaoSocial").length < 3) return { erro: "Informe nome e razão social." };
-  if (!(n("minutosReservaSite") >= 5 && n("minutosReservaSite") <= 240)) return { erro: "Reserva do site: de 5 a 240 minutos." };
-  const whatsapps = s("whatsapps")
-    .split("\n")
-    .map((l) => l.split("|").map((x) => x.trim()))
-    .filter((p) => p.length >= 2 && p[0] && p[1])
-    .map(([cidade, numero]) => ({ cidade, numero, link: `55${numero.replace(/\D/g, "")}` }));
-  if (!whatsapps.length) return { erro: "Informe ao menos um WhatsApp no formato “Cidade | (92) 99999-9999”." };
-  const empresa: Configuracao["empresa"] = {
-    nome: s("nome"),
-    razaoSocial: s("razaoSocial"),
-    cnpj: s("cnpj"),
-    email: s("email"),
-    tipoServico: s("tipoServico") || "Expresso",
-    whatsapps,
-    whatsapp: whatsapps[0].link,
-    beneficios: s("beneficios").split(",").map((x) => x.trim()).filter(Boolean),
-    minutosReservaSite: Math.round(n("minutosReservaSite")),
-  };
-  return concluir(salvarConfig("empresa", empresa), "Dados da empresa salvos.", "/");
-}
-
-export async function salvarValoresAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel("ADMIN");
-  if (a.erro) return { erro: a.erro };
-  const { n } = leitor(form);
-  const tipos: TipoPassageiro[] = ["INTEIRA", "CRIANCA", "IDOSO", "ESTUDANTE", "PCD"];
-  const descontos = Object.fromEntries(tipos.map((t) => [t, (n(`desc-${t}`) || 0) / 100])) as Record<TipoPassageiro, number>;
-  if (Object.values(descontos).some((d) => !(d >= 0 && d <= 1))) return { erro: "Descontos devem ficar entre 0% e 100%." };
-  const valores: Configuracao["valores"] = {
-    descontos,
-    isentosTaxa: config().valores.isentosTaxa,
-    multaCancelamentoPct: n("multaCancelamentoPct") || 0,
-    horasCancelamentoSemMulta: n("horasCancelamentoSemMulta") || 0,
-    taxaSistemaPct: n("taxaSistemaPct") || 0,
-  };
-  if (!(valores.multaCancelamentoPct >= 0 && valores.multaCancelamentoPct <= 100)) return { erro: "Multa entre 0% e 100%." };
-  if (!(valores.taxaSistemaPct >= 0 && valores.taxaSistemaPct <= 30)) return { erro: "Porcentagem do sistema entre 0% e 30%." };
-  return concluir(salvarConfig("valores", valores), "Valores salvos. Novas vendas já usam as regras novas.");
-}
-
-export async function salvarBilheteAction(_: Estado, form: FormData): Promise<Estado> {
-  const a = await exigirPapel("ADMIN");
-  if (a.erro) return { erro: a.erro };
-  const { s, n, b } = leitor(form);
-  const atual = config().bilhete;
-  const bilhete: Configuracao["bilhete"] = {
-    larguraMm: s("larguraMm") === "58" ? 58 : 80,
-    titulo: s("titulo") || atual.titulo,
-    mostrarLogo: b("mostrarLogo"),
-    mostrarValores: b("mostrarValores"),
-    mostrarQr: b("mostrarQr"),
-    mostrarBeneficios: b("mostrarBeneficios"),
-    localEmbarque: s("localEmbarque") || atual.localEmbarque,
-    antecedenciaEmbarqueMin: Math.max(0, Math.round(n("antecedenciaEmbarqueMin") || 0)),
-    mensagens: s("mensagens").split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 6),
-  };
-  return concluir(salvarConfig("bilhete", bilhete), "Modelo do bilhete salvo.");
-}

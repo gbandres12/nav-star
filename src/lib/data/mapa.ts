@@ -1,7 +1,7 @@
 import "server-only";
 import { buscarBaseDeDadosParaRelatorios } from "./relatorios";
 import type { Viagem } from "../types";
-import type { Db } from "../seed";
+import type { Db } from "../types";
 
 export type PosicaoEmbarcacao = {
   embarcacaoId: string;

@@ -2,7 +2,7 @@ import "server-only";
 import { createClient } from "../supabase/server";
 import { mapLinha, mapViagem, mapPedido, mapPassagem, mapEncomenda, mapCidade, mapPorto, mapEmbarcacao, mapUsuario, mapAgencia } from "./map";
 import type { Cancelamento, CaixaSessao, Convenio } from "../types";
-import type { Db } from "../seed";
+import type { Db } from "../types";
 import { Filtros } from "../relatorios";
 
 export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {

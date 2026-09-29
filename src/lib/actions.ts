@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { exigirPapel } from "./sessao";
 import { criarPedidoSite, criarPedidoBalcao, confirmarPagamento, informarPagamento, validarEmbarque } from "./data/pedidos";
 import { criarEncomenda, avancarEncomenda } from "./data/encomendas";
-import { rotuloAssento, type NovoPedidoInput } from "./store";
+import type { NovoPedidoInput } from "./types";
 
 export type CheckoutState = { erro?: string } | undefined;
 
@@ -84,12 +84,9 @@ export async function validarBilhete(_: EmbarqueState, form: FormData): Promise<
   const r = await validarEmbarque(token);
   revalidatePath("/admin", "layout");
   
-  // Note: the RPC returns a json with { passagem: { nome }, viagem: { id } } according to the previous behavior.
-  // Wait, I don't need to specify everything. Just use `r.resultado`.
-  const res = r.resultado as any;
-  const extra = res?.passagem
-    ? { passageiro: res.passagem.nome, assento: rotuloAssento(res.passagem), viagem: res.viagem?.id }
-    : {};
+  // A RPC devolve { passageiro: { nome }, assento: "12A" | "Livre", ... }
+  const res = r.resultado as { passageiro?: { nome?: string }; assento?: string } | null;
+  const extra = res?.passageiro ? { passageiro: res.passageiro.nome, assento: res.assento } : {};
   return r.ok ? { ok: true, mensagem: "Embarque liberado", ...extra } : { ok: false, mensagem: r.erro, ...extra };
 }
 

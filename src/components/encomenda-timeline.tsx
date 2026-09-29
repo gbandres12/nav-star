@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 import { dateTime, label } from "@/lib/format";
-import { FLUXO_ENCOMENDA } from "@/lib/store";
+import { FLUXO_ENCOMENDA } from "@/lib/padroes";
 import type { Encomenda } from "@/lib/types";
 
 export function EncomendaTimeline({ e }: { e: Encomenda }) {
