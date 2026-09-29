@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidarCatalogo } from "./cache";
 import { redirect } from "next/navigation";
 import { exigirPapel } from "./sessao";
 import type { Resultado } from "./types";
@@ -41,6 +42,7 @@ function leitor(form: FormData) {
 function concluir(r: Resultado, ok: string, ...caminhos: string[]): Estado {
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
+  invalidarCatalogo();
   for (const c of caminhos) revalidatePath(c);
   return { ok };
 }
@@ -73,6 +75,7 @@ export async function fecharCaixaAction(_: Estado, form: FormData): Promise<Esta
   const r = await fecharCaixa(n("valorContado"), s("observacao"));
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
+  invalidarCatalogo();
   redirect(`/admin/caixa/${r.caixa.id}?imprimir=1`);
 }
 
@@ -86,6 +89,7 @@ export async function cancelarAction(_: Estado, form: FormData): Promise<Estado>
   const r = await cancelarPedido(s("codigo"), s("motivo"));
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
+  invalidarCatalogo();
   revalidatePath(`/pedido/${s("codigo")}`);
   return { ok: "Pedido cancelado. As poltronas estão livres de novo." };
 }
@@ -117,6 +121,7 @@ export async function alternarVendasAction(form: FormData) {
   if (a.erro) return;
   await gestaoViagens.alternarVendas(String(form.get("id")));
   revalidatePath("/admin", "layout");
+  invalidarCatalogo();
   revalidatePath("/viagens");
 }
 
@@ -134,6 +139,7 @@ export async function viagemAvulsaAction(_: Estado, form: FormData): Promise<Est
   const r = await gestaoViagens.criarViagemAvulsa({ linhaId: s("linhaId"), embarcacaoId: s("embarcacaoId"), dia: s("dia"), hora: s("hora") });
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
+  invalidarCatalogo();
   revalidatePath("/viagens");
   redirect(`/admin/viagens/${r.id}`);
 }
@@ -159,6 +165,7 @@ export async function salvarEmbarcacaoAction(_: Estado, form: FormData): Promise
   });
   if (r.ok && !s("id")) {
     revalidatePath("/admin", "layout");
+    invalidarCatalogo();
     redirect(`/admin/embarcacoes/${r.id}`);
   }
   return concluir(r, "Embarcação salva.");
@@ -196,6 +203,7 @@ export async function salvarTripulanteAction(_: Estado, form: FormData): Promise
   });
   if (r.ok && !s("id")) {
     revalidatePath("/admin", "layout");
+    invalidarCatalogo();
     redirect("/admin/tripulantes");
   }
   return concluir(r, "Tripulante salvo.");

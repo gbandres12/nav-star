@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidarCatalogo } from "./cache";
 import { redirect } from "next/navigation";
 import type { Estado } from "./admin-actions";
 import * as precos from "./data/precos";
@@ -32,6 +33,7 @@ async function soAdmin() {
 function concluir(r: precos.Resultado, ok: string, ...caminhos: string[]): Estado {
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin", "layout");
+  invalidarCatalogo();
   for (const c of caminhos) revalidatePath(c, "layout");
   return { ok };
 }
@@ -134,6 +136,7 @@ export async function salvarLinhaAction(d: { id?: string; nome: string; ativa: b
   const r = await precos.salvarLinha(d);
   if (r.ok && !d.id && r.id) {
     revalidatePath("/admin", "layout");
+    invalidarCatalogo();
     redirect(`/admin/linhas/${r.id}`);
   }
   return concluir(r, "Linha salva. Confira os preços em Trechos e preços.", "/");

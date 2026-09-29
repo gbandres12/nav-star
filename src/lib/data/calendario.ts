@@ -1,5 +1,6 @@
 import "server-only";
-import { createClient } from "../supabase/server";
+import { unstable_cache } from "next/cache";
+import { createPublicClient } from "../supabase/publico";
 import { TZ } from "../format";
 
 export type CalendarioViagem = {
@@ -60,6 +61,25 @@ export function mesDaData(dia: string) {
   return dia.slice(0, 7);
 }
 
+/**
+ * A RPC é pública (anônima), então o resultado é igual para todo mundo e pode ser reaproveitado entre requisições.
+ * 30 s: o número de lugares livres pode atrasar meio minuto; a venda confere de novo no banco.
+ */
+const rpcCalendario = unstable_cache(
+  async (origemSlug: string, destinoSlug: string, mes: string) => {
+    const dynamicClient = createPublicClient() as unknown as DynamicRpcClient;
+    const { data, error } = await dynamicClient.rpc("calendario_viagens", {
+      origem_slug: origemSlug,
+      destino_slug: destinoSlug,
+      mes: `${mes}-01`,
+    });
+    if (error || !Array.isArray(data)) throw new Error(`[calendario] ${error?.message}`);
+    return data as CalendarioRow[];
+  },
+  ["calendario-viagens"],
+  { revalidate: 30 }
+);
+
 export async function calendarioViagens(
   origemSlug: string,
   destinoSlug: string,
@@ -67,17 +87,11 @@ export async function calendarioViagens(
 ): Promise<CalendarioViagem[]> {
   if (!mesValido(mes)) return [];
 
-  const supabase = await createClient();
-  const dynamicClient = supabase as unknown as DynamicRpcClient;
-  const { data, error } = await dynamicClient.rpc("calendario_viagens", {
-    origem_slug: origemSlug,
-    destino_slug: destinoSlug,
-    mes: `${mes}-01`,
+  const data = await rpcCalendario(origemSlug, destinoSlug, mes).catch((e) => {
+    console.error(e);
+    return [] as CalendarioRow[];
   });
-
-  if (error || !Array.isArray(data)) return [];
-
-  return (data as CalendarioRow[]).map((row) => ({
+  return data.map((row) => ({
     dia: row.dia,
     viagemId: row.viagem_id,
     saida: row.saida,
