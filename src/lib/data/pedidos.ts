@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "../supabase/server";
 import { createAdminClient } from "../supabase/admin";
+import { dentroDoLimite, LIMITES, MSG_LIMITE } from "../limite";
 import { mapPassagem, mapPedido, type DbPagamento } from "./map";
 import type { CanalVenda, MetodoPagamento, Passagem, Pedido, StatusPassagem, StatusPedido, TipoPassageiro } from "../types";
 import type { Database, Json } from "../supabase/database.types";
@@ -30,7 +31,9 @@ export async function criarPedidoSite(payload: {
     assentoId?: string;
   }>;
 }) {
-  const supabase = await createClient();
+  if (!(await dentroDoLimite(LIMITES.criarPedido))) return { ok: false as const, erro: MSG_LIMITE };
+  // Só o servidor executa esta RPC (a chave anônima foi revogada): o limite acima não pode ser contornado
+  const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("criar_pedido_site", {
     payload: {
       viagem_id: payload.viagemId,
@@ -103,7 +106,8 @@ export async function criarPedidoBalcao(payload: {
 }
 
 export async function pedidoPublico(codigo: string) {
-  const supabase = await createClient();
+  if (!(await dentroDoLimite(LIMITES.consultarPedido))) return null;
+  const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("pedido_publico", {
     codigo: codigo.toUpperCase().trim(),
   });
@@ -290,7 +294,8 @@ export async function viasImpressas(pedidoId: string) {
 
 /** Cliente avisou que pagou: o banco segura a reserva até a conferência */
 export async function informarPagamento(codigo: string) {
-  const supabase = (await createClient()) as unknown as DynamicRpcClient;
+  if (!(await dentroDoLimite(LIMITES.informarPagamento))) return { ok: false as const, erro: MSG_LIMITE };
+  const supabase = createAdminClient() as unknown as DynamicRpcClient;
   const { error } = await supabase.rpc("informar_pagamento", { codigo: codigo.toUpperCase().trim() });
   return error ? { ok: false as const, erro: error.message } : { ok: true as const };
 }
