@@ -7,6 +7,7 @@ import { ConfirmarPagamento } from "@/components/admin/confirmar-pagamento";
 import { Badge } from "@/components/ui";
 import { pedidoCompleto, pedidoPorCodigo, viasImpressas } from "@/lib/data/pedidos";
 import { getConfig } from "@/lib/data/utils";
+import { agenciaDoPedido } from "@/lib/data/agencias-parceiras";
 import { createClient } from "@/lib/supabase/server";
 import { dateTime, label, money } from "@/lib/format";
 import { garantirAcesso } from "@/lib/sessao";
@@ -26,6 +27,7 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
   const vendedor = interno.vendedorId
     ? (await (await createClient()).from("perfis").select("nome").eq("id", interno.vendedorId).maybeSingle()).data?.nome
     : undefined;
+  const viaAgencia = p.canal === "AGENCIA" ? await agenciaDoPedido(p.id) : undefined;
   const ativas = p.passagens.filter((x) => x.status === "EMITIDA" || x.status === "RESERVADA");
   const emitidas = p.passagens.filter((x) => x.status === "EMITIDA" || x.status === "EMBARCADA");
   const canceladas = p.passagens.filter((x) => x.status === "CANCELADA");
@@ -140,8 +142,9 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
                 ["E-mail", p.compradorEmail ?? "—"],
                 ["Canal", label(p.canal)],
                 ["Vendedor", vendedor ?? "—"],
+                ...(viaAgencia ? [["Agência parceira", viaAgencia]] : []),
                 ["Criado em", dateTime(p.createdAt)],
-                ["Pagamento", `${label(p.pagamento.metodo)} · ${label(p.pagamento.status)}`],
+                ["Pagamento", viaAgencia ? "Recebido pela agência (repasse a receber)" : `${label(p.pagamento.metodo)} · ${label(p.pagamento.status)}`],
                 ["Vias impressas", String(Math.max(0, ...vias.values()))],
                 ...(p.pagamento.pagoEm ? [["Pago em", dateTime(p.pagamento.pagoEm)]] : []),
               ].map(([k, val]) => (

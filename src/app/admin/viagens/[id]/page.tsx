@@ -5,6 +5,8 @@ import { SeatMap } from "@/components/seat-map";
 import { PrintButton } from "@/components/print-button";
 import { Badge, OccupancyBar, PageHeader, Stat } from "@/components/ui";
 import { ViagemControles } from "@/components/admin/viagem-controles";
+import { PisosAgenciaForm } from "@/components/admin/pisos-agencia-form";
+import { CATEGORIAS_PISO, pisosDaViagem, vendasDeAgenciasNaViagem } from "@/lib/data/agencias-parceiras";
 import { operadorAtual } from "@/lib/sessao";
 import { embarcacao as buscarEmbarcacao, linha as buscarLinha } from "@/lib/data/catalogo";
 import { tripulantes as listarTripulantes } from "@/lib/data/frota";
@@ -30,6 +32,7 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
   const horarios = await Promise.all(l.paradas.map((p) => horarioParada(v, p.ordem)));
   const [ocupadosSeg, comodos] = await Promise.all([assentosOcupados(v.id, seg, seg + 1), mapaComodos(e.id)]);
 
+  const [pisos, vendasAgencias] = await Promise.all([pisosDaViagem(v.id), vendasDeAgenciasNaViagem(v.id)]);
   const ativas = d.manifesto.filter((p) => p.status !== "NAO_COMPARECEU");
   const porSegmento = l.paradas.slice(0, -1).map((_, s) => ativas.filter((p) => p.origemOrdem <= s && p.destinoOrdem > s).length);
   const pico = Math.max(0, ...porSegmento);
@@ -133,6 +136,37 @@ export default async function ViagemDetalhe({ params, searchParams }: PageProps<
           proximos={proximosStatus(v.status)}
           tripulantes={tripulantes.filter((t) => t.ativo)}
         />
+      )}
+
+      {gestor && (
+        <div className="no-print card mt-6 p-5">
+          <h2 className="font-bold">Agências parceiras</h2>
+          <p className="mb-4 text-sm text-slate-500">
+            Piso = quanto a agência repassa à empresa, em % do preço de tabela do trecho (100% = sem desconto). A agência pode cobrar mais, nunca menos que o piso; o que passar do piso fica com ela.
+          </p>
+          <PisosAgenciaForm viagemId={v.id} categorias={CATEGORIAS_PISO} pisos={pisos} />
+          {vendasAgencias.length > 0 && (
+            <div className="mt-6 overflow-x-auto">
+              <h3 className="mb-2 text-sm font-bold">Vendas das agências nesta viagem</h3>
+              <table className="table-base">
+                <thead><tr><th>Agência</th><th>Bilhete</th><th>Passageiro</th><th>Trecho</th><th className="text-right">Cobrado</th><th className="text-right">Repasse</th><th>Status</th></tr></thead>
+                <tbody>
+                  {vendasAgencias.map((x) => (
+                    <tr key={x.numero}>
+                      <td className="font-medium whitespace-nowrap">{x.agencia}</td>
+                      <td className="font-mono text-xs">{x.pedidoCodigo ? <Link href={`/admin/pedidos/${x.pedidoCodigo}`} className="text-rio-700 hover:underline">{x.numero}</Link> : x.numero}</td>
+                      <td className="whitespace-nowrap">{x.passageiro}</td>
+                      <td className="whitespace-nowrap">{paradas[x.origemOrdem]?.cidade.nome} → {paradas[x.destinoOrdem]?.cidade.nome}</td>
+                      <td className="text-right tabular-nums">{money(x.valorCobrado)}</td>
+                      <td className="text-right tabular-nums">{money(x.valorRepasse)}</td>
+                      <td><Badge status={x.status === "EMITIDO" ? "EMITIDA" : x.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="card mt-6 overflow-x-auto">

@@ -72,6 +72,7 @@ export const LABEL: Record<string, string> = {
   DINHEIRO: "Dinheiro",
   INTEIRA: "Inteira",
   CRIANCA: "Criança (meia)",
+  COLO: "Criança de colo",
   IDOSO: "Idoso",
   ESTUDANTE: "Estudante",
   PCD: "PCD",
