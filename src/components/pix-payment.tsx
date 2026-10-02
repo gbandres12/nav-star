@@ -105,15 +105,15 @@ export function PixPayment({
   );
 }
 
-/** Depois do "Já paguei": aguardando a conferência da equipe */
-export function PagamentoEmConferencia({ codigo, expiraEm, whatsapp }: { codigo: string; expiraEm: string; whatsapp: string }) {
-  const tempo = useContagem(expiraEm);
+/** Depois do "Já paguei": poltronas ficam presas até a equipe conferir (não expiram sozinhas) */
+export function PagamentoEmConferencia({ codigo, whatsapp }: { codigo: string; whatsapp: string }) {
   return (
     <div className="card mx-auto max-w-md p-6 text-center">
       <Loader2 className="mx-auto animate-spin text-rio-600" size={36} />
       <h2 className="mt-3 text-lg font-bold">Pagamento em conferência</h2>
       <p className="mt-1 text-sm text-slate-600">
-        Recebemos seu aviso. Assim que a equipe conferir o PIX, os bilhetes aparecem aqui. Seus lugares ficam reservados por mais {tempo}.
+        Recebemos seu aviso. Os lugares continuam reservados até a equipe conferir o PIX no extrato.
+        Os bilhetes aparecem nesta página assim que o pagamento for confirmado.
       </p>
       <a className="btn-ghost mt-5" href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Olá! Enviei o comprovante do pedido ${codigo}.`)}`}>
         <MessageCircle size={16} /> Reenviar comprovante no WhatsApp

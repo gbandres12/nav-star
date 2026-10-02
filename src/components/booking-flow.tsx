@@ -2,12 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { ArrowRight, CreditCard, Loader2, QrCode, Banknote, Plus, Trash2, TriangleAlert, Armchair, Sparkles } from "lucide-react";
-import { QR } from "./qr";
 import { LotacaoViva, ProgressoCompra, SeloReserva, ValorAnimado } from "./checkout-extras";
 import { SeatMap } from "./seat-map";
 import { finalizarCompra } from "@/lib/actions";
 import { money } from "@/lib/format";
-import { brCodePix, type RecebedorPix } from "@/lib/pix";
+import type { RecebedorPix } from "@/lib/pix";
 import type { Assento, CanalVenda, MetodoPagamento, TipoPassageiro } from "@/lib/types";
 
 const TIPOS: { v: TipoPassageiro; l: string }[] = [
@@ -44,7 +43,7 @@ type Props = {
   livresSemAcrescimo: number; // poltronas livres sem acréscimo de cômodo no trecho
   livres: number; // lugares livres no trecho
   assentoLivre?: boolean; // embarcação sem poltrona numerada
-  pix?: RecebedorPix | null; // balcão: QR com o total para o cliente pagar antes da emissão
+  pix?: RecebedorPix | null; // balcão: avisa se a chave PIX está cadastrada
   minutosReserva?: number; // site: tempo para pagar
 };
 
@@ -133,8 +132,9 @@ export function BookingFlow(p: Props) {
         destinoOrdem: p.destinoOrdem,
         canal: p.canal,
         vendedorId: p.vendedorId,
-        // No balcão a venda sai paga: o PIX é conferido na tela antes de confirmar
-        pagoNoAto: balcao,
+        // Dinheiro, cartão e convênio faturado saem pagos na hora. PIX do balcão
+        // reserva as poltronas e mostra o QR na próxima tela, com o código do pedido.
+        pagoNoAto: balcao && (Boolean(conv?.faturado) || metodo !== "PIX"),
         metodo: conv?.faturado ? "FATURADO" : metodo,
         convenioId: convenioId || undefined,
         comprador: balcao
@@ -357,12 +357,12 @@ export function BookingFlow(p: Props) {
             {balcao && metodo === "PIX" && !conv?.faturado && total > 0 && (
               <div className="rounded-xl border border-slate-200 p-3 text-center">
                 {p.pix ? (
-                  <>
-                    <div className="mx-auto w-fit"><QR value={brCodePix(p.pix, { valor: total, txid: "BALCAO" })} size={168} /></div>
-                    <p className="mt-2 text-xs text-slate-600">Mostre ao cliente. Confirme a venda <strong>só depois de ver o PIX de {money(total)} recebido</strong>.</p>
-                  </>
+                  <p className="text-xs text-slate-600">
+                    O QR do PIX, com o código deste pedido no extrato do banco, aparece na próxima tela.
+                    Confirme o pagamento <strong>só depois de ver os {money(total)} na conta</strong>.
+                  </p>
                 ) : (
-                  <p className="text-xs text-amber-800">Chave PIX não cadastrada (Configurações → Pagamento). Receba pela chave da empresa e confirme.</p>
+                  <p className="text-xs text-amber-800">Chave PIX não cadastrada (Configurações → Pagamento). Receba pela chave da empresa e confirme na ficha do pedido.</p>
                 )}
               </div>
             )}
@@ -370,7 +370,7 @@ export function BookingFlow(p: Props) {
             <button type="button" onClick={submit} disabled={pending} className={`${balcao ? "btn-primary" : "btn-sol"} mt-2 w-full py-3 text-base ${pronto ? "cta-pronto" : ""}`}>
               {pronto && <span className="cta-pronto-brilho" aria-hidden />}
               {pending ? <Loader2 size={18} className="animate-spin" /> : null}
-              {balcao ? (conv?.faturado ? "Emitir (faturado)" : metodo === "PIX" ? "PIX recebido — emitir" : "Confirmar venda") : pronto ? "Garantir meu lugar" : "Ir para pagamento"}
+              {balcao ? (conv?.faturado ? "Emitir (faturado)" : metodo === "PIX" ? "Gerar PIX e reservar" : "Confirmar venda") : pronto ? "Garantir meu lugar" : "Ir para pagamento"}
               {!pending && <ArrowRight size={18} />}
             </button>
             {!balcao && <SeloReserva minutos={p.minutosReserva ?? 30} />}

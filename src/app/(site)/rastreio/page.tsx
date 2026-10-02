@@ -1,8 +1,7 @@
 import { PackageSearch, Search } from "lucide-react";
 import { EncomendaTimeline } from "@/components/encomenda-timeline";
 import { Badge, Empty } from "@/components/ui";
-import { cidade as getCidade } from "@/lib/data/catalogo";
-import { encomendaPorCodigo } from "@/lib/data/encomendas";
+import { rastrearEncomenda } from "@/lib/data/encomendas";
 import { money } from "@/lib/format";
 
 export const metadata = { title: "Rastrear encomenda" };
@@ -10,10 +9,7 @@ export const metadata = { title: "Rastrear encomenda" };
 export default async function Rastreio({ searchParams }: PageProps<"/rastreio">) {
   const sp = await searchParams;
   const codigo = typeof sp.codigo === "string" ? sp.codigo.trim() : "";
-  const e = codigo ? await encomendaPorCodigo(codigo) : undefined;
-
-  const origemCidade = e ? await getCidade(e.origemCidadeId) : null;
-  const destinoCidade = e ? await getCidade(e.destinoCidadeId) : null;
+  const e = codigo ? await rastrearEncomenda(codigo) : null;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
@@ -39,10 +35,10 @@ export default async function Rastreio({ searchParams }: PageProps<"/rastreio">)
             <div>
               <p className="font-mono text-sm font-semibold text-slate-500">{e.codigo}</p>
               <p className="mt-1 text-lg font-bold">
-                {origemCidade?.nome} → {destinoCidade?.nome}
+                {e.origemCidade} → {e.destinoCidade}
               </p>
               <p className="text-sm text-slate-500">
-                Para {e.destinatarioNome.split(" ")[0]} · {e.volumes} volume(s) · {e.pesoKg.toLocaleString("pt-BR")} kg
+                Para {e.destinatarioNome} · {e.volumes} volume(s) · {e.pesoKg.toLocaleString("pt-BR")} kg
               </p>
             </div>
             <Badge status={e.status} />
@@ -56,7 +52,7 @@ export default async function Rastreio({ searchParams }: PageProps<"/rastreio">)
             <EncomendaTimeline e={e} />
           </div>
           {e.status === "DISPONIVEL_RETIRADA" && (
-            <p className="mt-6 text-sm text-slate-600">Retire no porto de {destinoCidade?.nome} com documento com foto.</p>
+            <p className="mt-6 text-sm text-slate-600">Retire no porto de {e.destinoCidade} com documento com foto.</p>
           )}
         </div>
       )}

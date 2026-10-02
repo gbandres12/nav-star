@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { destinoSeguro } from "@/lib/destino-seguro";
 import { createClient } from "@/lib/supabase/server";
 
 export async function loginAction(
@@ -25,7 +26,7 @@ export async function loginAction(
     return { erro: "E-mail ou senha incorretos. Verifique suas credenciais." };
   }
 
-  redirect(redirectTo.startsWith("/") ? redirectTo : "/admin");
+  redirect(destinoSeguro(redirectTo, "/admin"));
 }
 
 export async function logoutAction() {
