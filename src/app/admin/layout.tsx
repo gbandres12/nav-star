@@ -10,9 +10,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: { default: "Gestão", template: "%s · Gestão São Tomé" } };
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  const op = await operadorAtual();
+  // Sessão e configuração em paralelo (antes uma esperava a outra)
+  const [op, config] = await Promise.all([operadorAtual(), getConfig()]);
   const iniciais = op.nome.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-  const empresa = (await getConfig()).empresa;
+  const empresa = config.empresa;
   return (
     <div className="min-h-screen lg:flex">
       <Sidebar papel={op.papel} />
