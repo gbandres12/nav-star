@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { ArrowRight, CreditCard, Loader2, QrCode, Banknote, Plus, Trash2, TriangleAlert, Armchair, Sparkles } from "lucide-react";
 import { QR } from "./qr";
+import { LotacaoViva, ProgressoCompra, SeloReserva, ValorAnimado } from "./checkout-extras";
 import { SeatMap } from "./seat-map";
 import { finalizarCompra } from "@/lib/actions";
 import { money } from "@/lib/format";
@@ -105,6 +106,16 @@ export function BookingFlow(p: Props) {
   const total = subtotal + taxas;
   const podeTerAcrescimo = modo === "auto" && pax.filter((x) => !ehColo(x)).length > p.livresSemAcrescimo;
 
+  const paxOk = pax.every((x) => x.nome.trim().length >= 3 && x.documento.replace(/\D/g, "").length >= 5);
+  const compradorOk = comprador.nome.trim().length >= 3 && comprador.telefone.replace(/\D/g, "").length >= 10;
+  const passos = [
+    { rotulo: "Viagem", ok: true },
+    { rotulo: "Passageiros", ok: paxOk },
+    { rotulo: "Seus dados", ok: compradorOk },
+    { rotulo: "Pagamento", ok: paxOk && compradorOk },
+  ];
+  const pronto = !balcao && paxOk && compradorOk && !pending;
+
   function submit() {
     setErro(undefined);
     if (!pax.length) return setErro("Adicione pelo menos um passageiro.");
@@ -148,13 +159,16 @@ export function BookingFlow(p: Props) {
       ];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+    <>
+    {!balcao && <div className="mb-6"><ProgressoCompra passos={passos} /></div>}
+    <div className={`grid gap-6 lg:grid-cols-[1fr_340px] ${balcao ? "" : "pb-24 lg:pb-0"}`}>
       <div className="min-w-0 space-y-6">
-        <section className="card p-5 sm:p-6">
+        <section className="card animate-subir p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-bold text-slate-900">1. {p.assentoLivre ? "Lugares" : "Poltronas"}</h2>
-            <span className="text-sm text-slate-500">{p.livres} {p.assentoLivre ? "lugares" : "poltronas"} livres neste trecho</span>
+            {balcao && <span className="text-sm text-slate-500">{p.livres} {p.assentoLivre ? "lugares" : "poltronas"} livres neste trecho</span>}
           </div>
+          {!balcao && <LotacaoViva livres={p.livres} total={p.assentos.length} />}
           {p.assentoLivre ? (
             <p className="rounded-xl border border-rio-200 bg-rio-50 p-4 text-sm text-rio-900">
               <strong>Assento livre.</strong> Nesta embarcação as poltronas não são numeradas: cada passageiro escolhe o lugar ao embarcar, por ordem de chegada.
@@ -192,7 +206,7 @@ export function BookingFlow(p: Props) {
           )}
         </section>
 
-        <section className="card p-5 sm:p-6">
+        <section className="card animate-subir p-5 [animation-delay:80ms] sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="font-bold text-slate-900">2. Passageiros</h2>
             <button type="button" onClick={adicionar} className="btn-ghost py-1.5"><Plus size={16} /> Adicionar passageiro</button>
@@ -251,7 +265,7 @@ export function BookingFlow(p: Props) {
           )}
         </section>
 
-        <section className="card p-5 sm:p-6">
+        <section className="card animate-subir p-5 [animation-delay:160ms] sm:p-6">
           <h2 className="mb-4 font-bold text-slate-900">3. {balcao ? "Cliente e pagamento" : "Seus dados e pagamento"}</h2>
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
@@ -328,7 +342,7 @@ export function BookingFlow(p: Props) {
             )}
             <div className="flex items-baseline justify-between border-t border-slate-200 pt-3">
               <span className="font-semibold text-slate-800">Total</span>
-              <span className="text-2xl font-extrabold text-rio-900 tabular-nums">{money(total)}</span>
+              <span className="text-2xl font-extrabold text-rio-900 tabular-nums">{balcao ? money(total) : <ValorAnimado valor={total} />}</span>
             </div>
             {modo === "auto" && !p.assentoLivre && (
               <p className="text-xs text-slate-500">
@@ -349,15 +363,33 @@ export function BookingFlow(p: Props) {
               </div>
             )}
             {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{erro}</p>}
-            <button type="button" onClick={submit} disabled={pending} className={`${balcao ? "btn-primary" : "btn-sol"} mt-2 w-full py-3 text-base`}>
+            <button type="button" onClick={submit} disabled={pending} className={`${balcao ? "btn-primary" : "btn-sol"} mt-2 w-full py-3 text-base ${pronto ? "cta-pronto" : ""}`}>
+              {pronto && <span className="cta-pronto-brilho" aria-hidden />}
               {pending ? <Loader2 size={18} className="animate-spin" /> : null}
-              {balcao ? (conv?.faturado ? "Emitir (faturado)" : metodo === "PIX" ? "PIX recebido — emitir" : "Confirmar venda") : "Ir para pagamento"}
+              {balcao ? (conv?.faturado ? "Emitir (faturado)" : metodo === "PIX" ? "PIX recebido — emitir" : "Confirmar venda") : pronto ? "Garantir meu lugar" : "Ir para pagamento"}
               {!pending && <ArrowRight size={18} />}
             </button>
-            {!balcao && <p className="text-center text-xs text-slate-500">Lugares reservados por {p.minutosReserva ?? 30} min para você pagar.</p>}
+            {!balcao && <SeloReserva minutos={p.minutosReserva ?? 30} />}
           </div>
         </div>
       </aside>
     </div>
+    {!balcao && (
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+        <div className="mx-auto flex max-w-xl items-center gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] text-slate-500">{pax.length} {pax.length === 1 ? "passageiro" : "passageiros"}</p>
+            <p className="text-lg leading-tight font-extrabold text-rio-900 tabular-nums"><ValorAnimado valor={total} /></p>
+          </div>
+          <button type="button" onClick={submit} disabled={pending} className={`btn-sol ml-auto py-2.5 ${pronto ? "cta-pronto" : ""}`}>
+            {pronto && <span className="cta-pronto-brilho" aria-hidden />}
+            {pending ? <Loader2 size={18} className="animate-spin" /> : null}
+            {pronto ? "Garantir meu lugar" : "Ir para pagamento"}
+            {!pending && <ArrowRight size={18} />}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
