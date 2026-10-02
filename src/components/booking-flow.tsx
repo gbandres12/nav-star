@@ -48,7 +48,7 @@ type Props = {
   minutosReserva?: number; // site: tempo para pagar
 };
 
-type Pax = { key: number; assentoId?: string; nome: string; documento: string; tipo: TipoPassageiro };
+type Pax = { key: number; assentoId?: string; nome: string; documento: string; nascimento?: string; tipo: TipoPassageiro };
 type Modo = "auto" | "mapa";
 
 export function BookingFlow(p: Props) {
@@ -140,7 +140,7 @@ export function BookingFlow(p: Props) {
         comprador: balcao
           ? { nome: comprador.nome || pax[0].nome, telefone: comprador.telefone, email: comprador.email } // telefone opcional no balcão
           : comprador,
-        passageiros: pax.map(({ assentoId, nome, documento, tipo }) => ({ assentoId: modo === "mapa" && tipo !== "COLO" ? assentoId : undefined, nome, documento, tipo })),
+        passageiros: pax.map(({ assentoId, nome, documento, nascimento, tipo }) => ({ assentoId: modo === "mapa" && tipo !== "COLO" ? assentoId : undefined, nome, documento, nascimento: nascimento || undefined, tipo })),
       });
       if (r?.erro) setErro(r.erro);
     });
@@ -231,7 +231,7 @@ export function BookingFlow(p: Props) {
                     </button>
                   )}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-[2fr_1.2fr_1.4fr]">
+                <div className="grid gap-3 sm:grid-cols-[2fr_1.2fr_1fr_1.4fr]">
                   <div>
                     <label className="label" htmlFor={`nome-${x.key}`}>Nome completo</label>
                     <input id={`nome-${x.key}`} className="input" value={x.nome} onChange={(e) => editar(x.key, { nome: e.target.value })} placeholder="Como no documento" />
@@ -239,6 +239,10 @@ export function BookingFlow(p: Props) {
                   <div>
                     <label className="label" htmlFor={`doc-${x.key}`}>CPF ou RG</label>
                     <input id={`doc-${x.key}`} className="input" inputMode="numeric" value={x.documento} onChange={(e) => editar(x.key, { documento: e.target.value })} placeholder="000.000.000-00" />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor={`nasc-${x.key}`}>Nascimento <span className="font-normal text-slate-400">(opcional)</span></label>
+                    <input id={`nasc-${x.key}`} type="date" min="1900-01-01" className="input" value={x.nascimento ?? ""} onChange={(e) => editar(x.key, { nascimento: e.target.value })} />
                   </div>
                   <div>
                     <label className="label" htmlFor={`tipo-${x.key}`}>Tipo</label>

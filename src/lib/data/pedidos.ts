@@ -26,6 +26,7 @@ export async function criarPedidoSite(payload: {
   passageiros: Array<{
     nome: string;
     documento: string;
+    nascimento?: string; // AAAA-MM-DD, opcional
     telefone?: string;
     tipo?: string;
     assentoId?: string;
@@ -46,6 +47,7 @@ export async function criarPedidoSite(payload: {
       passageiros: payload.passageiros.map((p) => ({
         nome: p.nome,
         documento: p.documento,
+        nascimento: p.nascimento || null,
         telefone: p.telefone,
         tipo: p.tipo || "INTEIRA",
         assento_id: p.assentoId || null,
@@ -72,6 +74,7 @@ export async function criarPedidoBalcao(payload: {
   passageiros: Array<{
     nome: string;
     documento: string;
+    nascimento?: string; // AAAA-MM-DD, opcional
     telefone?: string;
     tipo?: string;
     assentoId?: string;
@@ -91,6 +94,7 @@ export async function criarPedidoBalcao(payload: {
       passageiros: payload.passageiros.map((p) => ({
         nome: p.nome,
         documento: p.documento,
+        nascimento: p.nascimento || null,
         telefone: p.telefone,
         tipo: p.tipo || "INTEIRA",
         assento_id: p.assentoId || null,
