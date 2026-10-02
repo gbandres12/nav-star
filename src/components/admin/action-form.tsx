@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, startTransition, type ReactNode } from "react";
 import { CircleCheck, Loader2, TriangleAlert } from "lucide-react";
 import type { Estado } from "@/lib/admin-actions";
 
@@ -12,10 +12,11 @@ type Props = {
   confirmar?: string; // pergunta de confirmação antes de enviar
   limparAoSalvar?: boolean;
   botaoClassName?: string;
+  manterValores?: boolean; // em erro não apaga o que foi digitado (o React limpa o formulário ao fim da action)
 };
 
 /** Formulário ligado a uma server action, com mensagem de erro/sucesso e botão com carregamento */
-export function ActionForm({ action, children, submit = "Salvar", className = "", confirmar, limparAoSalvar, botaoClassName = "btn-primary" }: Props) {
+export function ActionForm({ action, children, submit = "Salvar", className = "", confirmar, limparAoSalvar, botaoClassName = "btn-primary", manterValores }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -25,10 +26,18 @@ export function ActionForm({ action, children, submit = "Salvar", className = ""
   return (
     <form
       ref={ref}
-      action={formAction}
+      action={manterValores ? undefined : formAction}
       className={className}
       onSubmit={(e) => {
-        if (confirmar && !window.confirm(confirmar)) e.preventDefault();
+        if (confirmar && !window.confirm(confirmar)) {
+          e.preventDefault();
+          return;
+        }
+        if (manterValores) {
+          e.preventDefault();
+          const dados = new FormData(e.currentTarget);
+          startTransition(() => formAction(dados));
+        }
       }}
     >
       {children}

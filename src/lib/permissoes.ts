@@ -12,6 +12,7 @@ export const ACESSO: [prefixo: string, papeis: PapelUsuario[]][] = [
   ["/admin/financeiro", GESTAO],
   ["/admin/convenios", GESTAO],
   ["/admin/festivais", GESTAO],
+  ["/admin/agencias-parceiras", ["ADMIN"]],
   ["/admin/agencias", GESTAO],
   ["/admin/linhas", GESTAO],
   ["/admin/trechos", GESTAO],

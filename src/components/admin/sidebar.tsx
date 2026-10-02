@@ -31,6 +31,7 @@ import {
   Ship,
   ShoppingCart,
   Store,
+  Handshake,
   Ticket,
   User,
   UserRound,
@@ -86,6 +87,7 @@ const GRUPOS: Grupo[] = [
       { href: "/admin/festivais", l: "Festivais", i: PartyPopper },
       { href: "/admin/convenios", l: "Convênios", i: BadgePercent },
       { href: "/admin/agencias", l: "Agências", i: Store },
+      { href: "/admin/agencias-parceiras", l: "Agências parceiras", i: Handshake },
     ],
   },
   {

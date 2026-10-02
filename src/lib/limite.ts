@@ -10,6 +10,8 @@ export const LIMITES = {
   criarPedido: { acao: "criar-pedido", max: 20, janelaSeg: 600 },
   informarPagamento: { acao: "informar-pagamento", max: 40, janelaSeg: 600 },
   consultarPedido: { acao: "consultar-pedido", max: 120, janelaSeg: 60 },
+  cadastroAgencia: { acao: "cadastro-agencia", max: 10, janelaSeg: 3600 },
+  loginAgencia: { acao: "login-agencia", max: 40, janelaSeg: 600 },
 } satisfies Record<string, Regra>;
 
 export const MSG_LIMITE = "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.";

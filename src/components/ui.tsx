@@ -3,13 +3,13 @@ import type { ReactNode } from "react";
 
 const TONE: Record<string, string> = {
   // verde
-  PAGO: "emerald", EMITIDA: "emerald", EMBARCADA: "emerald", ENTREGUE: "emerald", ATIVA: "emerald", CONCLUIDA: "slate", APROVADO: "emerald",
+  PAGO: "emerald", EMITIDA: "emerald", EMBARCADA: "emerald", ENTREGUE: "emerald", ATIVA: "emerald", APROVADA: "emerald", EMITIDO: "emerald", CONCLUIDA: "slate", APROVADO: "emerald",
   // azul
-  PROGRAMADA: "blue", EM_TRANSITO: "blue", EMBARCADO: "blue", EM_CURSO: "blue", RECEBIDA: "blue",
+  PROGRAMADA: "blue", EM_TRANSITO: "blue", EMBARCADO: "blue", EM_CURSO: "blue", RECEBIDA: "blue", TRANSFERIDO: "blue",
   // amarelo
-  AGUARDANDO_PAGAMENTO: "amber", RESERVADA: "amber", EMBARQUE: "amber", DISPONIVEL_RETIRADA: "amber", MANUTENCAO: "amber", PENDENTE: "amber",
+  AGUARDANDO_PAGAMENTO: "amber", RESERVADA: "amber", EMBARQUE: "amber", DISPONIVEL_RETIRADA: "amber", MANUTENCAO: "amber", PENDENTE: "amber", SUSPENSA: "amber",
   // vermelho
-  CANCELADO: "red", CANCELADA: "red", EXPIRADO: "red", NAO_COMPARECEU: "red", DEVOLVIDA: "red", INATIVA: "red", REEMBOLSADO: "red",
+  CANCELADO: "red", CANCELADA: "red", EXPIRADO: "red", NAO_COMPARECEU: "red", DEVOLVIDA: "red", INATIVA: "red", RECUSADA: "red", REEMBOLSADO: "red",
 };
 
 const TONES: Record<string, string> = {
