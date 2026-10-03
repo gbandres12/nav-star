@@ -27,12 +27,12 @@ async function empresaAtual(supabase: SupabaseClient) {
 
 export async function listarConvenios(): Promise<Convenio[]> {
   const supabase = await banco();
-  const { data, error } = await supabase.from("convenios").select("id,nome,cnpj,desconto_percentual,faturado,contato,ativo").order("nome");
+  const { data, error } = await supabase.from("convenios").select("id,nome,cnpj,desconto_percentual,faturado,contato,ativo,disponivel_agencias").order("nome");
   if (error) throw new Error(`Não foi possível carregar os convênios: ${error.message}`);
   return (data ?? []).map((c) => ({
     id: c.id, nome: c.nome, cnpj: c.cnpj ?? undefined,
     descontoPercentual: Number(c.desconto_percentual), faturado: c.faturado,
-    contato: c.contato ?? undefined, ativo: c.ativo,
+    contato: c.contato ?? undefined, ativo: c.ativo, disponivelAgencias: !!c.disponivel_agencias,
   }));
 }
 
@@ -64,7 +64,7 @@ export async function salvarConvenio(d: Omit<Convenio, "id"> & { id?: string }):
   if (!empresaId) return { ok: false, erro: "Empresa do operador não encontrada." };
   const campos = {
     nome: d.nome.trim(), cnpj: d.cnpj?.trim() || null, desconto_percentual: d.descontoPercentual,
-    faturado: d.faturado, contato: d.contato?.trim() || null, ativo: d.ativo,
+    faturado: d.faturado, contato: d.contato?.trim() || null, ativo: d.ativo, disponivel_agencias: !!d.disponivelAgencias && !d.faturado,
   };
   const r = d.id
     ? await supabase.from("convenios").update(campos).eq("id", d.id).eq("empresa_id", empresaId).select("id")

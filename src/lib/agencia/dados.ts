@@ -96,12 +96,27 @@ export async function lotacoes(empresaId: string, ids: string[]): Promise<Record
 
 export type PrecoCategoria = { tipo: string; tabela: number; piso: number; taxa: number };
 
-export async function precosDoTrecho(empresaId: string, viagemId: string, origem: number, destino: number): Promise<PrecoCategoria[]> {
-  if (!UUID.test(viagemId) || !Number.isInteger(origem) || !Number.isInteger(destino)) return [];
+export type ConvenioPortal = { id: string; nome: string; desconto: number };
+
+/** Convênios que a empresa liberou para as agências (nunca os faturados) */
+export async function conveniosDoPortal(empresaId: string): Promise<ConvenioPortal[]> {
+  const { data } = await bancoAgencia()
+    .from("convenios")
+    .select("id, nome, desconto_percentual")
+    .eq("empresa_id", empresaId)
+    .eq("ativo", true)
+    .eq("disponivel_agencias", true)
+    .eq("faturado", false)
+    .order("nome");
+  return (data ?? []).map((c) => ({ id: c.id as string, nome: c.nome as string, desconto: Number(c.desconto_percentual) }));
+}
+
+export async function precosDoTrecho(empresaId: string, viagemId: string, origem: number, destino: number, convenioId?: string): Promise<PrecoCategoria[]> {
+  if (!UUID.test(viagemId) || !Number.isInteger(origem) || !Number.isInteger(destino) || (convenioId && !UUID.test(convenioId))) return [];
   const banco = bancoAgencia();
   const { data: v } = await banco.from("viagens").select("id").eq("id", viagemId).eq("empresa_id", empresaId).maybeSingle();
   if (!v) return [];
-  const { data, error } = await banco.rpc("precos_agencia_trecho", { p_viagem_id: viagemId, p_origem_ordem: origem, p_destino_ordem: destino });
+  const { data, error } = await banco.rpc("precos_agencia_trecho", { p_viagem_id: viagemId, p_origem_ordem: origem, p_destino_ordem: destino, p_convenio_id: convenioId || null });
   if (error) throw new Error(`[precos_agencia_trecho] ${error.message}`);
   return (data as { tipo: string; valor_tabela: number; valor_piso: number; taxa_embarque: number }[]).map((r) => ({
     tipo: r.tipo,

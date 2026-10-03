@@ -30,10 +30,10 @@ export async function lotacaoPortalAction(ids: string[]): Promise<Record<string,
   return lotacoes(ag.empresaId, ids);
 }
 
-export async function precosPortalAction(viagemId: string, origem: number, destino: number): Promise<PrecoCategoria[] | null> {
+export async function precosPortalAction(viagemId: string, origem: number, destino: number, convenioId?: string): Promise<PrecoCategoria[] | null> {
   const ag = await agenciaAtual();
   if (!ag) return null;
-  return precosDoTrecho(ag.empresaId, viagemId, origem, destino);
+  return precosDoTrecho(ag.empresaId, viagemId, origem, destino, convenioId);
 }
 
 export async function venderPassagemAction(_: Estado, form: FormData): Promise<Estado> {
@@ -52,6 +52,7 @@ export async function venderPassagemAction(_: Estado, form: FormData): Promise<E
       origem_ordem: Number(campo(form, "origem")),
       destino_ordem: Number(campo(form, "destino")),
       tipo: campo(form, "tipo"),
+      convenio_id: campo(form, "convenio") || null,
       valor_cobrado: valor,
       passageiro: {
         nome: campo(form, "nome"),

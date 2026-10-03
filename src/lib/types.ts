@@ -213,6 +213,7 @@ export type Agencia = {
 
 /** Acordo com prefeitura, secretaria ou empresa: desconto e, se faturado, cobrança posterior */
 export type Convenio = {
+  disponivelAgencias?: boolean;
   id: string;
   nome: string;
   cnpj?: string;

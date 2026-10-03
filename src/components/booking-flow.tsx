@@ -338,10 +338,15 @@ export function BookingFlow(p: Props) {
                 <span className="font-medium tabular-nums">{money(i.valor)}</span>
               </div>
             ))}
-            {taxas > 0 && (
+            {taxas > 0 ? (
               <div className="flex justify-between">
                 <span className="text-slate-600">Taxa de embarque</span>
                 <span className="font-medium tabular-nums">{money(taxas)}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between text-slate-400">
+                <span>Taxa de embarque</span>
+                <span>não cobrada</span>
               </div>
             )}
             <div className="flex items-baseline justify-between border-t border-slate-200 pt-3">

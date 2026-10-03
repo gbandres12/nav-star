@@ -3,7 +3,7 @@
 import { startTransition, useActionState, useEffect, useState } from "react";
 import { Loader2, TriangleAlert } from "lucide-react";
 import { precosPortalAction, venderPassagemAction } from "@/lib/agencia/portal";
-import type { PrecoCategoria, Trecho, ViagemPortal } from "@/lib/agencia/dados";
+import type { ConvenioPortal, PrecoCategoria, Trecho, ViagemPortal } from "@/lib/agencia/dados";
 import { label, money } from "@/lib/format";
 import { Campo } from "@/components/admin/action-form";
 import { BarrasLotacao } from "./barras-lotacao";
@@ -12,7 +12,7 @@ import { useLotacaoAoVivo } from "./use-lotacao";
 const arredondar = (n: number) => Math.round(n * 100) / 100;
 
 /** `embarques`: ordens das paradas em que ainda dá para embarcar; `hoje`: AAAA-MM-DD (calculados no servidor) */
-export function FormVenda({ viagem, inicial, embarques: ordensEmbarque, hoje }: { viagem: ViagemPortal; inicial: Trecho[]; embarques: number[]; hoje: string }) {
+export function FormVenda({ viagem, inicial, convenios, embarques: ordensEmbarque, hoje }: { viagem: ViagemPortal; inicial: Trecho[]; convenios: ConvenioPortal[]; embarques: number[]; hoje: string }) {
   const ultima = viagem.paradas[viagem.paradas.length - 1].ordem;
   const embarques = viagem.paradas.filter((p) => ordensEmbarque.includes(p.ordem));
   const lotacao = useLotacaoAoVivo([viagem.id], { [viagem.id]: inicial });
@@ -21,18 +21,19 @@ export function FormVenda({ viagem, inicial, embarques: ordensEmbarque, hoje }: 
   const [origem, setOrigem] = useState(embarques[0]?.ordem ?? 0);
   const [destino, setDestino] = useState(ultima);
   const [tipo, setTipo] = useState("INTEIRA");
+  const [convenioId, setConvenioId] = useState("");
   const [edicao, setEdicao] = useState<{ k: string; v: string }>();
   const [precos, setPrecos] = useState<{ chave: string; lista: PrecoCategoria[] }>();
   const [estado, acao, enviando] = useActionState(venderPassagemAction, undefined);
 
-  const chave = `${origem}-${destino}`;
+  const chave = `${origem}-${destino}-${convenioId}`;
   useEffect(() => {
     let vivo = true;
-    precosPortalAction(viagem.id, origem, destino).then((lista) => vivo && setPrecos({ chave, lista: lista ?? [] }));
+    precosPortalAction(viagem.id, origem, destino, convenioId || undefined).then((lista) => vivo && setPrecos({ chave, lista: lista ?? [] }));
     return () => {
       vivo = false;
     };
-  }, [viagem.id, origem, destino, chave]);
+  }, [viagem.id, origem, destino, convenioId, chave]);
 
   const carregando = precos?.chave !== chave;
   const lista = carregando ? [] : precos.lista;
@@ -56,6 +57,7 @@ export function FormVenda({ viagem, inicial, embarques: ordensEmbarque, hoje }: 
       >
         <input type="hidden" name="viagemId" value={viagem.id} />
         <input type="hidden" name="tipo" value={preco?.tipo ?? ""} />
+        <input type="hidden" name="convenio" value={convenioId} />
 
         <fieldset className="space-y-3">
           <legend className="font-bold text-slate-900">1. Trecho e valor</legend>
@@ -86,6 +88,15 @@ export function FormVenda({ viagem, inicial, embarques: ordensEmbarque, hoje }: 
             </Campo>
           </div>
 
+          {convenios.length > 0 && (
+            <Campo label="Convênio (opcional)" dica={convenioId ? "O passageiro precisa comprovar o convênio no embarque." : undefined} className="max-w-md">
+              <select className="input" value={convenioId} onChange={(e) => setConvenioId(e.target.value)}>
+                <option value="">Sem convênio</option>
+                {convenios.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.desconto > 0 ? ` · até −${c.desconto}%` : ""}</option>)}
+              </select>
+            </Campo>
+          )}
+
           {carregando ? (
             <p className="text-sm text-slate-500">Carregando valores…</p>
           ) : !preco ? (
@@ -107,7 +118,11 @@ export function FormVenda({ viagem, inicial, embarques: ordensEmbarque, hoje }: 
               </Campo>
               <div className="text-sm sm:col-span-2">
                 <p className="text-slate-600">Tabela da empresa: <b>{money(preco.tabela)}</b> · mínimo permitido: <b>{money(preco.piso)}</b></p>
-                {preco.taxa > 0 && <p className="text-slate-600">Mais taxa de embarque: <b>{money(preco.taxa)}</b></p>}
+                {preco.taxa > 0 ? (
+                  <p className="text-slate-600">Mais taxa de embarque: <b>{money(preco.taxa)}</b></p>
+                ) : (
+                  <p className="text-slate-500">Sem taxa de embarque neste trecho para esta categoria.</p>
+                )}
                 {abaixoDoPiso ? (
                   <p role="alert" className="mt-1 flex items-center gap-1 font-medium text-red-700"><TriangleAlert size={14} /> O valor não pode ficar abaixo de {money(preco.piso)}.</p>
                 ) : Number.isFinite(valor) ? (

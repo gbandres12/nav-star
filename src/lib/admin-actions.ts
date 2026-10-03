@@ -213,7 +213,7 @@ export async function salvarConvenioAction(_: Estado, form: FormData): Promise<E
   const a = await exigirPapel(...GESTAO);
   if (a.erro) return { erro: a.erro };
   const { s, n, b } = leitor(form);
-  const r = await convenios.salvarConvenio({ id: s("id") || undefined, nome: s("nome"), cnpj: s("cnpj"), descontoPercentual: n("descontoPercentual"), faturado: b("faturado"), contato: s("contato"), ativo: b("ativo") });
+  const r = await convenios.salvarConvenio({ id: s("id") || undefined, nome: s("nome"), cnpj: s("cnpj"), descontoPercentual: n("descontoPercentual"), faturado: b("faturado"), contato: s("contato"), ativo: b("ativo"), disponivelAgencias: b("disponivelAgencias") });
   return concluir(r, s("id") ? "Convênio atualizado." : "Convênio criado.");
 }
 

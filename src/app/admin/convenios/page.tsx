@@ -20,6 +20,7 @@ function Campos({ c }: { c?: Convenio }) {
       <Campo label="Contato" className="lg:col-span-4"><input name="contato" defaultValue={c?.contato} className="input" /></Campo>
       <div className="flex flex-col justify-end gap-2 pb-1 lg:col-span-2">
         <Checkbox name="faturado" label="Faturado (paga depois, por fatura)" defaultChecked={c?.faturado} />
+        <Checkbox name="disponivelAgencias" label="Disponível no portal das agências (não vale para faturado)" defaultChecked={c?.disponivelAgencias} />
         <Checkbox name="ativo" label="Ativo" defaultChecked={c?.ativo ?? true} />
       </div>
     </div>
