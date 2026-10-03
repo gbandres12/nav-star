@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../supabase/server";
+import { localDayKey, manausDate } from "../format";
 import { bancoAgencia } from "../agencia/banco";
 import type { Resultado } from "../types";
 
@@ -331,3 +332,103 @@ export async function transferirBilhete(empresaId: string, operadorId: string, b
   if (error) return { ok: false, erro: error.code === "P0001" ? error.message : "Não foi possível transferir agora." };
   return { ok: true };
 }
+
+// ─── Painel ao vivo ───────────────────────────────────────────────────────
+
+export type PainelAoVivo = {
+  atualizadoEm: string;
+  agencias: Record<StatusAgenciaParceira, number>;
+  hoje: { bilhetes: number; vendido: number };
+  mes: { bilhetes: number; vendido: number; margem: number; nome: string };
+  aReceber: number;
+  aReceberQtd: number;
+  aDevolver: number;
+  pendentes: { id: string; nome: string; criadaEm: string }[];
+  ranking: { id: string; nome: string; bilhetes: number; vendido: number }[];
+  ultimas: { id: string; numero: string; agencia: string; passageiro: string; origem: string; destino: string; valor: number; status: string; criadoEm: string; recente: boolean }[];
+  viagensCheias: { id: string; linha: string; partida: string; pct: number; livres: number; trecho: string }[];
+};
+
+const soma = (rs: Iterable<ResumoAgencia>, f: (r: ResumoAgencia) => number) => [...rs].reduce((t, r) => t + f(r), 0);
+
+/** Fotografia do momento para o painel das agências. Quem chama precisa já ter conferido que o operador é ADMIN. */
+export async function painelAoVivo(): Promise<PainelAoVivo> {
+  const agora = new Date();
+  const [ano, mes, dia] = localDayKey(agora).split("-").map(Number);
+  const inicioHoje = manausDate(ano, mes - 1, dia);
+  const fimHoje = new Date(inicioHoje.getTime() + 86_400_000);
+  const inicioMes = manausDate(ano, mes - 1, 1);
+  const fimMes = manausDate(ano, mes, 1);
+
+  const leitura = await banco();
+  const [resumoHoje, resumoMes, listaAgencias, { data: bruto }, { data: viagens }] = await Promise.all([
+    resumoAgencias(inicioHoje, fimHoje),
+    resumoAgencias(inicioMes, fimMes),
+    listarAgenciasParceiras(),
+    leitura.from("bilhetes_agencia").select(`${SELECT_INTERNO}, agencia:agencias_parceiras(nome)`).order("created_at", { ascending: false }).limit(12),
+    leitura
+      .from("viagens")
+      .select("id, partida, linha:linhas(nome, paradas:paradas_linha(ordem, porto:portos(cidade:cidades(nome))))")
+      .in("status", ["PROGRAMADA", "EMBARQUE"])
+      .gt("partida", agora.toISOString())
+      .lt("partida", new Date(agora.getTime() + 7 * 86_400_000).toISOString())
+      .order("partida")
+      .limit(20),
+  ]);
+
+  const nomes = new Map(listaAgencias.map((a) => [a.id, a.nome]));
+  const contagem: Record<StatusAgenciaParceira, number> = { PENDENTE: 0, APROVADA: 0, SUSPENSA: 0, RECUSADA: 0 };
+  for (const a of listaAgencias) contagem[a.status]++;
+
+  const ultimas = ((bruto ?? []) as unknown as (LinhaBilheteInterno & { agencia: { nome: string } })[]).map((r) => {
+    const b = mapBilheteInterno(r);
+    return {
+      id: b.id, numero: b.numero, agencia: r.agencia.nome, passageiro: b.passageiro, origem: b.origem, destino: b.destino,
+      valor: b.valorCobrado, status: b.status, criadoEm: b.criadoEm, recente: agora.getTime() - new Date(b.criadoEm).getTime() < 120_000,
+    };
+  });
+
+  type V = { id: string; partida: string; linha: { nome: string; paradas: { ordem: number; porto: { cidade: { nome: string } } }[] } };
+  const servidor = bancoAgencia();
+  const cheias = (
+    await Promise.all(
+      ((viagens ?? []) as unknown as V[]).map(async (v) => {
+        const { data: lot } = await servidor.rpc("lotacao_por_trecho", { p_viagem_id: v.id });
+        const trechos = (lot ?? []) as { ordem_origem: number; ordem_destino: number; ocupados: number; capacidade: number; livres: number }[];
+        const pior = trechos.reduce<(typeof trechos)[number] | undefined>((m, t) => (!m || t.ocupados > m.ocupados ? t : m), undefined);
+        if (!pior || !pior.capacidade) return null;
+        const nome = (o: number) => v.linha.paradas.find((p) => p.ordem === o)?.porto.cidade.nome ?? "—";
+        return { id: v.id, linha: v.linha.nome, partida: v.partida, pct: Math.round((pior.ocupados / pior.capacidade) * 100), livres: pior.livres, trecho: `${nome(pior.ordem_origem)} → ${nome(pior.ordem_destino)}` };
+      }),
+    )
+  )
+    .filter((x): x is NonNullable<typeof x> => !!x && x.pct >= 80)
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 6);
+
+  return {
+    atualizadoEm: agora.toISOString(),
+    agencias: contagem,
+    hoje: { bilhetes: soma(resumoHoje.values(), (r) => r.bilhetesPeriodo), vendido: soma(resumoHoje.values(), (r) => r.vendidoPeriodo) },
+    mes: {
+      bilhetes: soma(resumoMes.values(), (r) => r.bilhetesPeriodo),
+      vendido: soma(resumoMes.values(), (r) => r.vendidoPeriodo),
+      margem: soma(resumoMes.values(), (r) => r.margemPeriodo),
+      nome: periodoNome(ano, mes),
+    },
+    aReceber: soma(resumoMes.values(), (r) => r.aReceber),
+    aReceberQtd: soma(resumoMes.values(), (r) => r.aReceberQtd),
+    aDevolver: soma(resumoMes.values(), (r) => r.aDevolver),
+    pendentes: listaAgencias.filter((a) => a.status === "PENDENTE").slice(0, 6).map((a) => ({ id: a.id, nome: a.nome, criadaEm: a.criadaEm })),
+    ranking: [...resumoMes.values()]
+      .filter((r) => r.bilhetesPeriodo > 0)
+      .sort((a, b) => b.vendidoPeriodo - a.vendidoPeriodo)
+      .slice(0, 5)
+      .map((r) => ({ id: r.agenciaId, nome: nomes.get(r.agenciaId) ?? "—", bilhetes: r.bilhetesPeriodo, vendido: r.vendidoPeriodo })),
+    ultimas,
+    viagensCheias: cheias,
+  };
+}
+
+const MESES_NOME = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const periodoNome = (ano: number, mes: number) => `${MESES_NOME[mes - 1]} ${ano}`;

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirPapel } from "./sessao";
-import { CATEGORIAS_PISO, decidirAgenciaParceira, empresaDoOperador, marcarRepasse, salvarPisos, transferirBilhete, type DecisaoAgencia } from "./data/agencias-parceiras";
+import { CATEGORIAS_PISO, decidirAgenciaParceira, empresaDoOperador, marcarRepasse, painelAoVivo, type PainelAoVivo, salvarPisos, transferirBilhete, type DecisaoAgencia } from "./data/agencias-parceiras";
 import { UUID } from "./agencia/banco";
 import type { Estado } from "./admin-actions";
 
@@ -76,4 +76,11 @@ export async function transferirBilheteAction(_: Estado, form: FormData): Promis
   if (!r.ok) return { erro: r.erro };
   revalidatePath("/admin/agencias-parceiras", "layout");
   return { ok: "Bilhete transferido. O QR continua o mesmo; o titular agora é o novo passageiro." };
+}
+
+/** Atualização do painel ao vivo (a cada ~15 s). Só o administrador; devolve null se a sessão expirou. */
+export async function painelAoVivoAction(): Promise<PainelAoVivo | null> {
+  const a = await exigirPapel("ADMIN");
+  if (!a.op) return null;
+  return painelAoVivo();
 }

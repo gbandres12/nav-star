@@ -59,7 +59,7 @@ export default async function AgenciasParceiras({ searchParams }: PageProps<"/ad
   return (
     <>
       <PageHeader title="Agências parceiras" subtitle="Agências que vendem passagens pelo portal próprio, com acesso separado do sistema. Só vendem depois de aprovadas."
-        actions={<MonthNav base="/admin/agencias-parceiras" {...per} />}
+        actions={<><Link href="/admin/agencias-parceiras/ao-vivo" className="btn-ghost">Painel ao vivo</Link><MonthNav base="/admin/agencias-parceiras" {...per} /></>}
       />
 
       <div className="card mb-6 p-5">
