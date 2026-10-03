@@ -7,6 +7,7 @@ import { PrintButton } from "@/components/print-button";
 import { PrintBilheteButton } from "@/components/print-bilhete-button";
 import { pedidoCompleto, viasImpressas } from "@/lib/data/pedidos";
 import { getConfig } from "@/lib/data/utils";
+import { destinoSeguro } from "@/lib/destino-seguro";
 
 export const metadata = { title: "Bilhete", robots: { index: false } };
 
@@ -18,7 +19,7 @@ export default async function BilhetePage({ params, searchParams }: PageProps<"/
   if (!pedido) notFound();
   const passagens = pedido.passagens.filter((p) => p.status === "EMITIDA" || p.status === "EMBARCADA");
   const [config, vias] = await Promise.all([getConfig(), viasImpressas(pedido.id)]);
-  const voltar = typeof sp.voltar === "string" && sp.voltar.startsWith("/") ? sp.voltar : `/pedido/${pedido.codigo}`;
+  const voltar = typeof sp.voltar === "string" ? destinoSeguro(sp.voltar, `/pedido/${pedido.codigo}`) : `/pedido/${pedido.codigo}`;
 
   return (
     <div className="min-h-screen bg-slate-200 print:bg-white">

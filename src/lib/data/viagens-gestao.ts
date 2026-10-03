@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../supabase/server";
-import { manausDate } from "../format";
+import { dateShort, label, manausDate, time } from "../format";
 import { mapViagem } from "./map";
 import type { StatusPassagem, StatusViagem, TipoPassageiro, Viagem } from "../types";
 
@@ -212,4 +212,28 @@ export async function criarViagemAvulsa(d: { linhaId: string; embarcacaoId: stri
     .single();
   if (error) return falha(error.code === "42501" ? "Só o administrador cria viagens avulsas." : error.message);
   return { ok: true, id: data.id as string };
+}
+
+export type ViagemEmbarque = { id: string; rotulo: string; status: StatusViagem };
+
+/** Saídas em andamento ou próximas, para o conferente escolher antes de ler o QR. */
+export async function viagensParaEmbarque(): Promise<ViagemEmbarque[]> {
+  const supabase = await createClient();
+  const desde = new Date(Date.now() - 36 * 3_600_000).toISOString();
+  const ate = new Date(Date.now() + 7 * 86_400_000).toISOString();
+  const { data } = await supabase
+    .from("viagens")
+    .select("id, partida, status, linha:linhas(nome)")
+    .in("status", ["PROGRAMADA", "EMBARQUE", "EM_CURSO"])
+    .gte("partida", desde)
+    .lte("partida", ate)
+    .order("partida");
+  return (data ?? []).map((v) => {
+    const linha = (v.linha as { nome?: string } | null)?.nome || "Linha";
+    return {
+      id: v.id,
+      status: v.status as StatusViagem,
+      rotulo: `${dateShort(v.partida)} ${time(v.partida)} · ${linha} · ${label(v.status)}`,
+    };
+  });
 }

@@ -2,18 +2,16 @@
 
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { destinoSeguro } from "@/lib/destino-seguro";
 import { createClient } from "@/lib/supabase/server";
 
 const TIPOS: EmailOtpType[] = ["invite", "recovery", "magiclink", "signup", "email"];
-
-/** Só caminhos internos (evita redirecionar para outro site) */
-const destinoSeguro = (next: string) => (next.startsWith("/") && !next.startsWith("//") ? next : "/primeiro-acesso");
 
 /** Valida o link de uso único quando a pessoa toca em "Continuar" (e não quando um robô abre a página) */
 export async function confirmarAcessoAction(form: FormData) {
   const tokenHash = String(form.get("token_hash") ?? "");
   const tipo = String(form.get("type") ?? "") as EmailOtpType;
-  const next = destinoSeguro(String(form.get("next") ?? "/primeiro-acesso"));
+  const next = destinoSeguro(String(form.get("next") ?? "/primeiro-acesso"), "/primeiro-acesso");
   const supabase = await createClient();
 
   if (tokenHash && TIPOS.includes(tipo)) {

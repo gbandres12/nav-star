@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { exigirPapel } from "./sessao";
 import { criarPedidoSite, criarPedidoBalcao, confirmarPagamento, informarPagamento, validarEmbarque } from "./data/pedidos";
 import { criarEncomenda, avancarEncomenda } from "./data/encomendas";
+import { pixSimuladoPermitido } from "./pix-simulado";
 import type { NovoPedidoInput } from "./types";
 
 export type CheckoutState = { erro?: string } | undefined;
@@ -41,13 +42,16 @@ export async function finalizarCompra(input: NovoPedidoInput): Promise<CheckoutS
   const c = r.codigo;
   if (input.canal === "SITE") redirect(`/pedido/${c}`);
   
-  // Balcão pago na hora: já abre o bilhete para a impressora térmica
+  // Balcão: PIX ainda não está pago — a próxima tela mostra o QR com o código do pedido.
+  // Dinheiro, cartão e convênio faturado saem pagos na hora e já abrem o bilhete.
   redirect(input.pagoNoAto ? `/bilhete/${c}?imprimir=1&voltar=/admin/pedidos/${c}` : `/admin/pedidos/${c}`);
 }
 
-/** Só para testes locais: em produção não faz nada (confirmar pagamento é do painel ou do gateway) */
+/** Só para testes locais: nunca em produção nem em preview da Vercel; só ADMIN com PAGAMENTO_SIMULADO=true */
 export async function simularPagamento(codigo: string) {
-  if (process.env.NODE_ENV === "production" || process.env.PAGAMENTO_SIMULADO !== "true") return;
+  if (!pixSimuladoPermitido()) return;
+  const a = await exigirPapel("ADMIN");
+  if (a.erro) return;
   await confirmarPagamento(codigo);
   revalidatePath(`/pedido/${codigo}`);
   revalidatePath("/admin", "layout");
@@ -78,10 +82,12 @@ export type EmbarqueState =
 
 export async function validarBilhete(_: EmbarqueState, form: FormData): Promise<EmbarqueState> {
   const token = String(form.get("token") ?? "");
+  const viagemId = String(form.get("viagemId") ?? "").trim();
+  if (!viagemId) return { ok: false, mensagem: "Selecione a viagem deste embarque." };
   if (!token.trim()) return { ok: false, mensagem: "Informe o código do bilhete." };
   const a = await exigirPapel("ADMIN", "GERENTE", "CONFERENTE");
   if (a.erro) return { ok: false, mensagem: a.erro };
-  const r = await validarEmbarque(token);
+  const r = await validarEmbarque(token, viagemId);
   revalidatePath("/admin", "layout");
   
   // A RPC devolve { passageiro: { nome }, assento: "12A" | "Livre", ... }
