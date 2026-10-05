@@ -158,10 +158,11 @@ export async function cancelarPedido(codigo: string, motivo?: string) {
   return { ok: true as const, data };
 }
 
-export async function validarEmbarque(qrToken: string) {
-  const supabase = await createClient();
+export async function validarEmbarque(qrToken: string, viagemId: string) {
+  const supabase = (await createClient()) as unknown as DynamicRpcClient;
   const { data, error } = await supabase.rpc("validar_embarque", {
     qr_token: qrToken.trim(),
+    p_viagem_id: viagemId,
   });
 
   if (error) {
@@ -352,6 +353,18 @@ export async function pedidosAConferir() {
     .select("id", { count: "exact", head: true })
     .eq("status", "AGUARDANDO_PAGAMENTO")
     .not("pagamento_informado_em" as never, "is", null);
+  return count ?? 0;
+}
+
+/** PIX informado cujo prazo de conferência já passou — poltronas ainda reservadas */
+export async function pedidosPixAtrasados() {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("pedidos")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "AGUARDANDO_PAGAMENTO")
+    .not("pagamento_informado_em" as never, "is", null)
+    .lte("expira_em", new Date().toISOString());
   return count ?? 0;
 }
 

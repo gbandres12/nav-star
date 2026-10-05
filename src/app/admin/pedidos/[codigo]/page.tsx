@@ -6,10 +6,13 @@ import { CancelarPedido } from "@/components/admin/cancelar-pedido";
 import { ConfirmarPagamento } from "@/components/admin/confirmar-pagamento";
 import { Badge } from "@/components/ui";
 import { pedidoCompleto, pedidoPorCodigo, viasImpressas } from "@/lib/data/pedidos";
+import { configPix } from "@/lib/data/pix";
 import { getConfig } from "@/lib/data/utils";
 import { agenciaDoPedido } from "@/lib/data/agencias-parceiras";
 import { createClient } from "@/lib/supabase/server";
 import { dateTime, label, money } from "@/lib/format";
+import { brCodePix } from "@/lib/pix";
+import { QR } from "@/components/qr";
 import { garantirAcesso } from "@/lib/sessao";
 
 export const metadata = { title: "Pedido" };
@@ -19,7 +22,7 @@ const horasAte = (instante: number) => Math.max(0, Math.floor((instante - Date.n
 export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/[codigo]">) {
   const op = await garantirAcesso("/admin/pedidos");
   const { codigo } = await params;
-  const [p, interno, config] = await Promise.all([pedidoCompleto(codigo), pedidoPorCodigo(codigo), getConfig()]);
+  const [p, interno, config, pix] = await Promise.all([pedidoCompleto(codigo), pedidoPorCodigo(codigo), getConfig(), configPix()]);
   if (!p || !interno) notFound();
   const vias = await viasImpressas(p.id);
   const jaImpresso = [...vias.values()].some((n) => n > 0);
@@ -48,6 +51,18 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
         ? "Pedido de convênio faturado: nada a reembolsar, a passagem sai da fatura."
         : `Saída em ${horasAntes} h. Até ${horasCancelamentoSemMulta} h antes o reembolso é integral; depois, retém-se ${multaCancelamentoPct}%. O reembolso é feito fora do sistema.`;
 
+  const pixAtrasado = Boolean(
+    p.status === "AGUARDANDO_PAGAMENTO" &&
+      p.pagamentoInformadoEm &&
+      p.expiraEm &&
+      new Date(p.expiraEm).getTime() <= Date.now()
+  );
+  const txid = p.codigo.replace(/[^A-Za-z0-9]/g, "");
+  const copiaCola =
+    p.status === "AGUARDANDO_PAGAMENTO" && p.pagamento.metodo === "PIX" && pix.recebedor
+      ? brCodePix(pix.recebedor, { valor: p.total, txid: p.codigo })
+      : null;
+
   return (
     <>
       <Link href="/admin/pedidos" className="no-print mb-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-rio-700">
@@ -71,18 +86,39 @@ export default async function PedidoAdmin({ params }: PageProps<"/admin/pedidos/
       </div>
 
       {p.status === "AGUARDANDO_PAGAMENTO" && (
-        <div className={`no-print mb-6 rounded-2xl border p-5 ${p.pagamentoInformadoEm ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+        <div className={`no-print mb-6 rounded-2xl border p-5 ${pixAtrasado ? "border-red-300 bg-red-50" : p.pagamentoInformadoEm ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
           <p className="flex items-center gap-2 font-semibold">
             <BellRing size={18} />
-            {p.pagamentoInformadoEm
-              ? `Cliente informou o pagamento em ${dateTime(p.pagamentoInformadoEm)}`
-              : "Aguardando o pagamento do cliente"}
+            {pixAtrasado
+              ? "PIX informado — prazo passou, poltronas ainda reservadas"
+              : p.pagamentoInformadoEm
+                ? `Cliente informou o pagamento em ${dateTime(p.pagamentoInformadoEm)}`
+                : p.canal === "BALCAO" || p.canal === "AGENCIA"
+                  ? "Mostre o QR ao cliente e confirme depois de ver o PIX na conta"
+                  : "Aguardando o pagamento do cliente"}
           </p>
+          {pixAtrasado && (
+            <p className="mt-2 rounded-xl border border-red-200 bg-white/70 p-3 text-sm text-red-950">
+              O cliente clicou em <strong>já paguei</strong> em {dateTime(p.pagamentoInformadoEm!)}. O prazo original já passou, mas as poltronas{" "}
+              <strong>não foram liberadas</strong>. Confira o extrato e confirme o pagamento ou cancele o pedido.
+            </p>
+          )}
           <p className="mt-1 text-sm text-slate-600">
             Confira no extrato um PIX de <strong>{money(p.total)}</strong>
-            {" "}com identificador <span className="font-mono font-semibold">{p.codigo.replace(/[^A-Za-z0-9]/g, "")}</span>.
-            {p.expiraEm && ` A reserva vale até ${dateTime(p.expiraEm)}.`}
+            {" "}com identificador <span className="font-mono font-semibold">{txid}</span>.
+            {!p.pagamentoInformadoEm && p.expiraEm && ` A reserva vale até ${dateTime(p.expiraEm)}.`}
           </p>
+          {copiaCola && (
+            <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3"><QR value={copiaCola} size={168} /></div>
+              <p className="max-w-sm text-xs text-slate-600">
+                QR gerado com o código deste pedido. O mesmo identificador deve aparecer no extrato do banco.
+              </p>
+            </div>
+          )}
+          {p.pagamento.metodo === "PIX" && !pix.recebedor && (
+            <p className="mt-2 text-sm text-amber-800">Chave PIX não cadastrada (Configurações → Pagamento).</p>
+          )}
           {gestao ? (
             <div className="mt-3"><ConfirmarPagamento codigo={p.codigo} total={money(p.total)} /></div>
           ) : (
