@@ -2,19 +2,72 @@ import "server-only";
 import { uuidCidade } from "./catalogo";
 import { createClient } from "../supabase/server";
 import { mapEncomenda, type DbEvento } from "./map";
-import type { Encomenda } from "../types";
+import type { Encomenda, StatusEncomenda } from "../types";
 import type { Database, Json } from "../supabase/database.types";
 
 type DbStatusEncomenda = Database["public"]["Enums"]["status_encomenda"];
 
-export async function rastrearEncomenda(codigo: string) {
+export type EncomendaRastreio = {
+  codigo: string;
+  status: StatusEncomenda;
+  origemCidade: string;
+  destinoCidade: string;
+  destinatarioNome: string;
+  volumes: number;
+  pesoKg: number;
+  frete: number;
+  pagador: Encomenda["pagador"];
+  fretePago: boolean;
+  eventos: Encomenda["eventos"];
+};
+
+type RastreioRpc = {
+  codigo?: string;
+  status?: StatusEncomenda;
+  origemCidade?: string;
+  origem_cidade?: string;
+  destinoCidade?: string;
+  destino_cidade?: string;
+  destinatarioNome?: string;
+  destinatarioPrimeiroNome?: string;
+  destinatario_primeiro_nome?: string;
+  volumes?: number;
+  pesoKg?: number;
+  peso_kg?: number;
+  frete?: number;
+  pagador?: Encomenda["pagador"];
+  fretePago?: boolean;
+  frete_pago?: boolean;
+  eventos?: Array<{ status?: StatusEncomenda; descricao?: string | null; createdAt?: string; created_at?: string }>;
+};
+
+/** Visitante: RPC pública (dados mascarados). Não usa a tabela encomendas (RLS só da equipe). */
+export async function rastrearEncomenda(codigo: string): Promise<EncomendaRastreio | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("rastrear_encomenda", {
     codigo: codigo.toUpperCase().trim(),
   });
 
-  if (error || !data) return null;
-  return data;
+  if (error || !data || typeof data !== "object") return null;
+  const r = data as RastreioRpc;
+  if (!r.codigo || !r.status) return null;
+  return {
+    codigo: r.codigo,
+    status: r.status,
+    origemCidade: r.origemCidade || r.origem_cidade || "",
+    destinoCidade: r.destinoCidade || r.destino_cidade || "",
+    destinatarioNome: r.destinatarioNome || r.destinatarioPrimeiroNome || r.destinatario_primeiro_nome || "",
+    volumes: Number(r.volumes) || 0,
+    pesoKg: Number(r.pesoKg ?? r.peso_kg) || 0,
+    frete: Number(r.frete) || 0,
+    pagador: r.pagador === "DESTINATARIO" ? "DESTINATARIO" : "REMETENTE",
+    fretePago: Boolean(r.fretePago ?? r.frete_pago),
+    eventos: (r.eventos ?? []).map((ev) => ({
+      status: (ev.status || "RECEBIDA") as StatusEncomenda,
+      descricao: ev.descricao || "",
+      createdAt: ev.createdAt || ev.created_at || "",
+    })),
+  };
 }
 
 export async function encomendaPorCodigo(codigo: string): Promise<Encomenda | null> {

@@ -3,7 +3,7 @@ import { BellRing, Search } from "lucide-react";
 import { ConfirmarPagamento } from "@/components/admin/confirmar-pagamento";
 import { Badge, Empty, PageHeader } from "@/components/ui";
 import { cidades as listarCidades, linhas as listarLinhas, portos as listarPortos } from "@/lib/data/catalogo";
-import { pedidosAConferir, pedidosAdmin, resumoPassagens } from "@/lib/data/pedidos";
+import { pedidosAConferir, pedidosAdmin, pedidosPixAtrasados, resumoPassagens } from "@/lib/data/pedidos";
 import { dateShort, dateTime, label, money, time } from "@/lib/format";
 import type { CanalVenda, StatusPedido } from "@/lib/types";
 import { garantirAcesso } from "@/lib/sessao";
@@ -24,9 +24,10 @@ export default async function Pedidos({ searchParams }: PageProps<"/admin/pedido
   const pagina = Math.max(1, Number(s("p")) || 1);
   const podeConfirmar = op.papel === "ADMIN" || op.papel === "GERENTE";
 
-  const [{ pedidos, total, paginas }, pendentes, linhas, portos, cidades] = await Promise.all([
+  const [{ pedidos, total, paginas }, pendentes, pixAtrasados, linhas, portos, cidades] = await Promise.all([
     pedidosAdmin({ busca: q, canal, status: aConferir ? "" : status, aConferir, pagina }),
     pedidosAConferir(),
+    pedidosPixAtrasados(),
     listarLinhas(),
     listarPortos(),
     listarCidades(),
@@ -42,6 +43,17 @@ export default async function Pedidos({ searchParams }: PageProps<"/admin/pedido
   return (
     <>
       <PageHeader title="Pedidos e passagens" subtitle={`${total.toLocaleString("pt-BR")} pedidos encontrados`} />
+
+      {pixAtrasados > 0 && (
+        <Link href="/admin/pedidos?status=CONFERIR" className="mb-4 flex items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 text-red-950 hover:bg-red-100">
+          <BellRing size={20} className="shrink-0" />
+          <span className="flex-1 text-sm">
+            <strong>{pixAtrasados} {pixAtrasados === 1 ? "pedido" : "pedidos"} com PIX informado cujo prazo já passou.</strong>{" "}
+            As poltronas continuam reservadas até a equipe confirmar ou cancelar.
+          </span>
+          <span className="text-sm font-semibold">{aConferir ? "Ver abaixo" : "Conferir →"}</span>
+        </Link>
+      )}
 
       {pendentes > 0 && !aConferir && (
         <Link href="/admin/pedidos?status=CONFERIR" className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900 hover:bg-amber-100">
@@ -91,8 +103,9 @@ export default async function Pedidos({ searchParams }: PageProps<"/admin/pedido
               {pedidos.map((p) => {
                 const r = resumo.get(p.id);
                 const informado = p.status === "AGUARDANDO_PAGAMENTO" && p.pagamentoInformadoEm;
+                const atrasado = Boolean(informado && p.expiraEm && new Date(p.expiraEm).getTime() <= Date.now());
                 return (
-                  <tr key={p.id} className={informado ? "bg-amber-50/60" : undefined}>
+                  <tr key={p.id} className={atrasado ? "bg-red-50/80" : informado ? "bg-amber-50/60" : undefined}>
                     <td>
                       <Link href={`/admin/pedidos/${p.codigo}`} className="font-mono text-xs font-bold text-rio-700 hover:underline">{p.numero}</Link>
                       <p className="text-xs text-slate-500">{dateTime(p.createdAt)}</p>
@@ -116,7 +129,9 @@ export default async function Pedidos({ searchParams }: PageProps<"/admin/pedido
                     <td>
                       {informado ? (
                         <>
-                          <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">PIX informado</span>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${atrasado ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
+                            {atrasado ? "PIX atrasado — conferir" : "PIX informado"}
+                          </span>
                           {podeConfirmar && <ConfirmarPagamento codigo={p.codigo} total={money(p.total)} compacto />}
                         </>
                       ) : (

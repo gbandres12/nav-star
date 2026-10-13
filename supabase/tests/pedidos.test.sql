@@ -9,8 +9,8 @@ begin;
 -- Garante que a extensão pgTAP esteja disponível na transação de teste
 create extension if not exists pgtap;
 
--- Plano de execução com 21 testes cobrindo todas as regras da etapa B9
-select plan(21);
+-- Plano de execução (embarque exige a viagem; cancelamento grava em cancelamentos; PIX informado não expira)
+select plan(25);
 
 -- ==============================================================================
 -- 1. Fixture de Dados de Teste
@@ -130,8 +130,14 @@ insert into public.pedidos (id, empresa_id, codigo, numero, canal, status, compr
   ('55000000-0000-0000-0000-000000000003', 'e3333333-3333-3333-3333-333333333333', 'PED-EXPIRAR', 'N-EXPIRAR', 'SITE', 'AGUARDANDO_PAGAMENTO', 'Comprador Expirar', '92999990003', 150.00, 160.00, now() - interval '10 minutes')
 on conflict (id) do nothing;
 
+-- Cliente clicou em "já paguei": prazo passou, mas a poltrona não pode ser solta
+insert into public.pedidos (id, empresa_id, codigo, numero, canal, status, comprador_nome, comprador_telefone, subtotal, total, expira_em, pagamento_informado_em) values
+  ('55000000-0000-0000-0000-000000000023', 'e3333333-3333-3333-3333-333333333333', 'PED-PIX-INFO', 'N-PIX-INFO', 'SITE', 'AGUARDANDO_PAGAMENTO', 'Comprador Pix Info', '92999990023', 150.00, 160.00, now() - interval '10 minutes', now() - interval '5 minutes')
+on conflict (id) do nothing;
+
 insert into public.passagens (id, empresa_id, pedido_id, viagem_id, assento_id, origem_ordem, destino_ordem, nome, documento, valor, status, qr_token) values
-  ('66000000-0000-0000-0000-000000000003', 'e3333333-3333-3333-3333-333333333333', '55000000-0000-0000-0000-000000000003', '44000000-0000-0000-0000-000000000001', 'aa000000-0000-0000-0000-000000000002', 0, 1, 'Passageiro Expirar', '33344455566', 150.00, 'RESERVADA', 'QR-EXPIRAR')
+  ('66000000-0000-0000-0000-000000000003', 'e3333333-3333-3333-3333-333333333333', '55000000-0000-0000-0000-000000000003', '44000000-0000-0000-0000-000000000001', 'aa000000-0000-0000-0000-000000000002', 0, 1, 'Passageiro Expirar', '33344455566', 150.00, 'RESERVADA', 'QR-EXPIRAR'),
+  ('66000000-0000-0000-0000-000000000023', 'e3333333-3333-3333-3333-333333333333', '55000000-0000-0000-0000-000000000023', '44000000-0000-0000-0000-000000000001', 'aa000000-0000-0000-0000-000000000003', 0, 1, 'Passageiro Pix Info', '33344455523', 150.00, 'RESERVADA', 'QR-PIX-INFO')
 on conflict (id) do nothing;
 
 -- Execução da expiração periódica
@@ -147,6 +153,18 @@ select is(
   (select status from public.passagens where id = '66000000-0000-0000-0000-000000000003'),
   'CANCELADA'::public.status_passagem,
   'Reserva expirada: passagem do pedido vencido foi alterada para CANCELADA'
+);
+
+select is(
+  (select status from public.pedidos where id = '55000000-0000-0000-0000-000000000023'),
+  'AGUARDANDO_PAGAMENTO'::public.status_pedido,
+  'PIX informado: pedido vencido NÃO expira — poltronas ficam para a equipe conferir'
+);
+
+select is(
+  (select status from public.passagens where id = '66000000-0000-0000-0000-000000000023'),
+  'RESERVADA'::public.status_passagem,
+  'PIX informado: passagem permanece RESERVADA após o prazo'
 );
 
 -- Assento liberado: nova reserva na mesma poltrona P02 tem sucesso imediato
@@ -230,15 +248,22 @@ set local role authenticated;
 set local "request.jwt.claims" = '{"sub": "c0000000-0000-0000-0000-000000000002", "role": "authenticated"}';
 
 select throws_ok(
-  $$ select public.validar_embarque('QR-PENDENTE-EMBARQUE'); $$,
+  $$ select public.validar_embarque('QR-PENDENTE-EMBARQUE', '44000000-0000-0000-0000-000000000001'); $$,
   'P0001',
   'Bilhete com pagamento pendente. Embarque não permitido.',
   'Embarque: recusa bilhete não pago (status RESERVADA)'
 );
 
+select throws_ok(
+  $$ select public.validar_embarque('QR-PAGO-EMBARQUE', '44000000-0000-0000-0000-000000000002'); $$,
+  'P0001',
+  'Este bilhete é de outra viagem. Confira a saída selecionada.',
+  'Embarque: recusa bilhete de outra viagem'
+);
+
 select lives_ok(
-  $$ select public.validar_embarque('QR-PAGO-EMBARQUE'); $$,
-  'Embarque: validação de bilhete EMITIDA tem sucesso'
+  $$ select public.validar_embarque('QR-PAGO-EMBARQUE', '44000000-0000-0000-0000-000000000001'); $$,
+  'Embarque: validação de bilhete EMITIDA tem sucesso na viagem certa'
 );
 
 select is(
@@ -248,7 +273,7 @@ select is(
 );
 
 select throws_like(
-  $$ select public.validar_embarque('QR-PAGO-EMBARQUE'); $$,
+  $$ select public.validar_embarque('QR-PAGO-EMBARQUE', '44000000-0000-0000-0000-000000000001'); $$,
   '%Bilhete já utilizado%',
   'Embarque: recusa bilhete já utilizado (status EMBARCADA)'
 );
@@ -285,6 +310,14 @@ select is(
   (select status from public.pedidos where codigo = 'PED-CANC-OK'),
   'CANCELADO'::public.status_pedido,
   'Cancelamento: status do pedido vira CANCELADO'
+);
+
+select is(
+  (select motivo from public.cancelamentos c
+     join public.pedidos p on p.id = c.pedido_id
+    where p.codigo = 'PED-CANC-OK'),
+  'Cancelamento pelo cliente',
+  'Cancelamento: grava motivo, valor, multa e reembolso em cancelamentos'
 );
 
 -- ==============================================================================

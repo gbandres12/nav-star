@@ -22,7 +22,7 @@ async function ipDoVisitante() {
   return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "desconhecido";
 }
 
-/** true = pode seguir. A equipe logada não é limitada. Se o contador falhar, deixa passar (o banco continua se defendendo). */
+/** true = pode seguir. A equipe logada não é limitada. Se o contador falhar, bloqueia (não deixa varrer pedidos). */
 export async function dentroDoLimite(regra: Regra) {
   const { data } = await (await createClient()).auth.getClaims();
   if (data?.claims?.sub) return true;
@@ -39,7 +39,7 @@ export async function dentroDoLimite(regra: Regra) {
   });
   if (error) {
     console.error("[limite] falha ao contar:", error.message);
-    return true;
+    return false;
   }
   return ok !== false;
 }

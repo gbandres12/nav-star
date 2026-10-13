@@ -332,5 +332,5 @@ export type NovoPedidoInput = {
   metodo: MetodoPagamento;
   vendedorId?: string;
   convenioId?: string; // só balcão/agência
-  pagoNoAto?: boolean; // balcão: dinheiro/cartão recebidos na hora
+  pagoNoAto?: boolean; // balcão: dinheiro/cartão/faturado na hora; PIX fica aguardando conferência
 };

@@ -5,7 +5,7 @@ import { MonthNav } from "@/components/admin/month-nav";
 import { Badge, OccupancyBar, PageHeader, Stat } from "@/components/ui";
 import { linhas as listarLinhas } from "@/lib/data/catalogo";
 import { encomendasPendentes, proximasViagensPainel, resumoDoMes, ultimosPedidos } from "@/lib/data/painel";
-import { pedidosAConferir } from "@/lib/data/pedidos";
+import { pedidosAConferir, pedidosPixAtrasados } from "@/lib/data/pedidos";
 import { dateShort, dateTime, label, money, time, weekday } from "@/lib/format";
 import { periodoMes } from "@/lib/periodo";
 import { usuarioAtual } from "@/lib/auth";
@@ -18,12 +18,13 @@ export default async function Painel({ searchParams }: PageProps<"/admin">) {
   const { mes, bemvindo } = await searchParams;
   const user = await usuarioAtual();
   const per = periodoMes(mes);
-  const [r, proximas, ultimos, encPend, aConferir, linhas] = await Promise.all([
+  const [r, proximas, ultimos, encPend, aConferir, pixAtrasados, linhas] = await Promise.all([
     resumoDoMes(per.inicio, per.fim, per.dias, per.mes),
     proximasViagensPainel(5),
     ultimosPedidos(7),
     encomendasPendentes(),
     pedidosAConferir(),
+    pedidosPixAtrasados(),
     listarLinhas(),
   ]);
   const nomeLinha = (id: string) => linhas.find((l) => l.id === id)?.nome ?? "";
@@ -54,8 +55,19 @@ export default async function Painel({ searchParams }: PageProps<"/admin">) {
         </div>
       )}
 
+      {pixAtrasados > 0 && (
+        <Link href="/admin/pedidos?status=CONFERIR" className="mb-4 flex items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 text-red-950 hover:bg-red-100">
+          <BellRing size={20} className="shrink-0" />
+          <span className="flex-1 text-sm">
+            <strong>{pixAtrasados} {pixAtrasados === 1 ? "pedido" : "pedidos"} com PIX informado cujo prazo já passou.</strong>{" "}
+            As poltronas continuam reservadas. Confira no extrato do banco e confirme o pagamento ou cancele o pedido.
+          </span>
+          <span className="text-sm font-semibold">Conferir →</span>
+        </Link>
+      )}
+
       {aConferir > 0 && (
-        <Link href="/admin/pedidos?status=CONFERIR" className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900 hover:bg-amber-100">
+        <Link href="/admin/pedidos?status=CONFERIR" className={`mb-6 flex items-center gap-3 rounded-2xl border p-4 hover:bg-amber-100 ${pixAtrasados > 0 ? "border-amber-200 bg-amber-50/70 text-amber-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
           <BellRing size={20} className="shrink-0" />
           <span className="flex-1 text-sm"><strong>{aConferir} {aConferir === 1 ? "pedido" : "pedidos"} com PIX informado pelo cliente</strong> esperando conferência.</span>
           <span className="text-sm font-semibold">Conferir →</span>

@@ -3,12 +3,13 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { destinoSeguro } from "@/lib/destino-seguro";
 import { loginAction } from "./actions";
 import { Lock, Mail, KeyRound, MessageCircle } from "lucide-react";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/admin";
+  const redirectTo = destinoSeguro(searchParams.get("redirect") || "/admin", "/admin");
   const urlErro = searchParams.get("erro");
 
   const [state, formAction, isPending] = useActionState(loginAction, null);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { KeyRound, TriangleAlert } from "lucide-react";
 import { Logo } from "@/components/ui";
+import { destinoSeguro } from "@/lib/destino-seguro";
 import { confirmarAcessoAction } from "./actions";
 
 export const metadata = { title: "Acesso ao painel", robots: { index: false } };
@@ -37,7 +38,7 @@ export default async function Acesso({ searchParams }: PageProps<"/acesso">) {
               <form action={confirmarAcessoAction} className="mt-6">
                 <input type="hidden" name="token_hash" value={tokenHash} />
                 <input type="hidden" name="type" value={tipo} />
-                <input type="hidden" name="next" value={s("next") || "/primeiro-acesso"} />
+                <input type="hidden" name="next" value={destinoSeguro(s("next") || "/primeiro-acesso", "/primeiro-acesso")} />
                 <button className="btn-primary w-full py-3 text-base">Continuar</button>
               </form>
               <p className="mt-4 text-xs text-slate-500">Use este link só uma vez e não repasse para outras pessoas.</p>

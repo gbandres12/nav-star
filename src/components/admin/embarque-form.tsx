@@ -3,8 +3,9 @@
 import { useActionState, useEffect, useRef } from "react";
 import { CircleCheck, CircleX, Loader2, ScanLine } from "lucide-react";
 import { validarBilhete, type EmbarqueState } from "@/lib/actions";
+import type { ViagemEmbarque } from "@/lib/data/viagens-gestao";
 
-export function EmbarqueForm() {
+export function EmbarqueForm({ viagens, viagemInicial }: { viagens: ViagemEmbarque[]; viagemInicial: string }) {
   const [state, action, pending] = useActionState<EmbarqueState, FormData>(validarBilhete, undefined);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -17,6 +18,12 @@ export function EmbarqueForm() {
   return (
     <div className="mx-auto max-w-xl">
       <form action={action} className="card p-6">
+        <label className="label" htmlFor="viagemId">Viagem deste embarque</label>
+        <select id="viagemId" name="viagemId" required defaultValue={viagemInicial} className="input mb-4">
+          {viagens.map((v) => (
+            <option key={v.id} value={v.id}>{v.rotulo}</option>
+          ))}
+        </select>
         <label className="label" htmlFor="token">Código do bilhete (QR Code)</label>
         <div className="flex gap-2">
           <input ref={ref} id="token" name="token" autoFocus autoComplete="off" className="input font-mono uppercase" placeholder="QR-XXXXXXXXXXXX" />
@@ -25,7 +32,7 @@ export function EmbarqueForm() {
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Use um leitor de QR USB/Bluetooth (funciona como teclado) ou digite o código.
+          Use um leitor de QR USB/Bluetooth (funciona como teclado) ou digite o código. Bilhete de outra viagem é recusado.
         </p>
       </form>
 

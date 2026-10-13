@@ -6,8 +6,10 @@ import { BilheteTermico } from "@/components/bilhete-termico";
 import { pedidoCompleto } from "@/lib/data/pedidos";
 import { configPix } from "@/lib/data/pix";
 import { getConfig } from "@/lib/data/utils";
+import { usuarioAtual } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { brCodePix } from "@/lib/pix";
+import { pixSimuladoPermitido } from "@/lib/pix-simulado";
 
 export const metadata = { title: "Seu pedido", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -16,7 +18,7 @@ export default async function PedidoPage({ params }: PageProps<"/pedido/[codigo]
   const { codigo } = await params;
   const pedido = await pedidoCompleto(codigo);
   if (!pedido) notFound();
-  const [config, pix] = await Promise.all([getConfig(), configPix()]);
+  const [config, pix, user] = await Promise.all([getConfig(), configPix(), usuarioAtual()]);
   const EMPRESA = config.empresa;
   const emitidas = pedido.passagens.filter((p) => p.status === "EMITIDA" || p.status === "EMBARCADA");
   // Código do pedido sem hífen vira o identificador no extrato do banco
@@ -32,7 +34,7 @@ export default async function PedidoPage({ params }: PageProps<"/pedido/[codigo]
       {pedido.status === "AGUARDANDO_PAGAMENTO" && pedido.expiraEm && (
         <div className="mt-4">
           {pedido.pagamentoInformadoEm ? (
-            <PagamentoEmConferencia codigo={pedido.codigo} expiraEm={pedido.expiraEm} whatsapp={EMPRESA.whatsapp} />
+            <PagamentoEmConferencia codigo={pedido.codigo} whatsapp={EMPRESA.whatsapp} />
           ) : copiaCola ? (
             <>
               <h1 className="mb-6 text-center text-2xl font-bold">Falta pouco! Finalize o pagamento</h1>
@@ -42,7 +44,7 @@ export default async function PedidoPage({ params }: PageProps<"/pedido/[codigo]
                 expiraEm={pedido.expiraEm}
                 total={money(pedido.total)}
                 whatsapp={EMPRESA.whatsapp}
-                simulado={process.env.NODE_ENV !== "production" && process.env.PAGAMENTO_SIMULADO === "true"}
+                simulado={pixSimuladoPermitido() && user?.papel === "ADMIN"}
               />
             </>
           ) : (

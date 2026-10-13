@@ -3,7 +3,7 @@ import { dateTime, label } from "@/lib/format";
 import { FLUXO_ENCOMENDA } from "@/lib/padroes";
 import type { Encomenda } from "@/lib/types";
 
-export function EncomendaTimeline({ e }: { e: Encomenda }) {
+export function EncomendaTimeline({ e }: { e: Pick<Encomenda, "status" | "eventos"> }) {
   const atual = FLUXO_ENCOMENDA.indexOf(e.status);
   return (
     <ol className="space-y-0">
