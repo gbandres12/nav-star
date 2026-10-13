@@ -1,7 +1,22 @@
 import "server-only";
 import { createClient } from "../supabase/server";
 
-export async function resumoFinanceiro(inicio: string, fim: string) {
+export interface ResumoFinanceiroDTO {
+  bruto: number;
+  liquido: number;
+  taxas: number;
+  reembolsos: number;
+  comissoes: number;
+  fretes_pagos: number;
+  fretes_a_receber: number;
+  por_canal: { canal: string; valor: number }[];
+  por_metodo: { metodo: string; valor: number }[];
+  por_linha: { linha_nome?: string; valor: number }[];
+  por_agencia: { agencia_id: string; agencia_nome: string; qtd: number; valor: number; comissao: number }[];
+  por_vendedor: { vendedor_nome?: string; valor: number }[];
+}
+
+export async function resumoFinanceiro(inicio: string, fim: string): Promise<ResumoFinanceiroDTO> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("resumo_financeiro", {
     inicio,
@@ -25,5 +40,5 @@ export async function resumoFinanceiro(inicio: string, fim: string) {
     };
   }
 
-  return data;
+  return data as unknown as ResumoFinanceiroDTO;
 }

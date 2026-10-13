@@ -1,9 +1,35 @@
 import "server-only";
 import { createClient } from "../supabase/server";
 
-export async function listarCancelamentos(inicio: Date, fim: Date): Promise<any[]> {
+import { Cancelamento } from "../types";
+
+export interface CancelamentoComDetalhes extends Cancelamento {
+  pedido?: {
+    codigo?: string;
+    compradorNome?: string;
+  };
+  usuario?: {
+    nome?: string;
+  };
+}
+
+type DbCancelamentoJoin = {
+  id: string;
+  pedido_id: string;
+  passagem_ids: string[] | null;
+  motivo: string;
+  valor_pago: number | string;
+  multa: number | string;
+  reembolso: number | string;
+  usuario_id: string | null;
+  created_at: string;
+  pedidos: { id: string; codigo: string; comprador_nome: string } | null;
+  perfis: { id: string; nome: string } | null;
+};
+
+export async function listarCancelamentos(inicio: Date, fim: Date): Promise<CancelamentoComDetalhes[]> {
   const supabase = await createClient();
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("cancelamentos")
     .select(`
       id,
@@ -24,15 +50,15 @@ export async function listarCancelamentos(inicio: Date, fim: Date): Promise<any[
 
   if (error || !data) return [];
 
-  return data.map((c: any) => ({
+  return (data as unknown as DbCancelamentoJoin[]).map((c) => ({
     id: c.id,
     pedidoId: c.pedido_id,
-    passagemIds: c.passagem_ids,
+    passagemIds: c.passagem_ids || [],
     motivo: c.motivo,
     valorPago: Number(c.valor_pago),
     multa: Number(c.multa),
     reembolso: Number(c.reembolso),
-    usuarioId: c.usuario_id,
+    usuarioId: c.usuario_id || undefined,
     createdAt: c.created_at,
     pedido: {
       codigo: c.pedidos?.codigo,

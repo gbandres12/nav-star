@@ -5,7 +5,7 @@ import Link from "next/link";
 import { garantirAcesso } from "@/lib/sessao";
 import { label, money } from "@/lib/format";
 import { periodoMes } from "@/lib/periodo";
-import { resumoFinanceiro, getConfig, listarCancelamentos, listarCaixasAbertos } from "@/lib/data";
+import { resumoFinanceiro, getConfig, listarCancelamentos } from "@/lib/data";
 
 export const metadata = { title: "Financeiro" };
 
@@ -14,7 +14,7 @@ export default async function Financeiro({ searchParams }: PageProps<"/admin/fin
   const { mes } = await searchParams;
   const per = periodoMes(mes);
   
-  const rf: any = await resumoFinanceiro(per.inicio.toISOString(), per.fim.toISOString());
+  const rf = await resumoFinanceiro(per.inicio.toISOString(), per.fim.toISOString());
   const cancs = await listarCancelamentos(per.inicio, per.fim);
   const conf = await getConfig();
 
@@ -24,7 +24,7 @@ export default async function Financeiro({ searchParams }: PageProps<"/admin/fin
   const fretesRecebidos = rf.fretes_pagos || 0;
   const fretesAReceber = rf.fretes_a_receber || 0;
 
-  const faturarObj = (rf.por_metodo || []).find((m: any) => m.metodo === "FATURADO");
+  const faturarObj = (rf.por_metodo || []).find((m) => m.metodo === "FATURADO");
   const faturar = faturarObj ? faturarObj.valor : 0;
   
   const totalSubtotal = total - taxas; // A rough approximation if we don't have exact subtotal from RPC
@@ -33,13 +33,13 @@ export default async function Financeiro({ searchParams }: PageProps<"/admin/fin
   // We can just use the caixas closed. The exact number might require a specific query. We'll use 0 or fetch it
   const caixasFechadosCount = 0; // We'll just show 0 if not easily available from existing methods
 
-  const mapChart = (arr: any[], lFn: (item: any) => string, vKey: string) => 
-    (arr || []).map(x => ({ label: lFn(x), value: Number(x[vKey]) }));
+  const mapChart = <T extends Record<string, unknown>>(arr: T[] | undefined, lFn: (item: T) => string, vKey: keyof T) => 
+    (arr || []).map((x) => ({ label: lFn(x), value: Number(x[vKey]) }));
 
-  const porCanal = mapChart(rf.por_canal, x => label(x.canal), "valor");
-  const porMetodo = mapChart(rf.por_metodo, x => label(x.metodo), "valor");
-  const porLinha = mapChart(rf.por_linha, x => x.linha_nome || "—", "valor");
-  const vendedores = mapChart(rf.por_vendedor, x => x.vendedor_nome || "—", "valor");
+  const porCanal = mapChart(rf.por_canal, (x) => label(x.canal), "valor");
+  const porMetodo = mapChart(rf.por_metodo, (x) => label(x.metodo), "valor");
+  const porLinha = mapChart(rf.por_linha, (x) => x.linha_nome || "—", "valor");
+  const vendedores = mapChart(rf.por_vendedor, (x) => x.vendedor_nome || "—", "valor");
   const agencias = rf.por_agencia || [];
 
   return (
@@ -88,7 +88,7 @@ export default async function Financeiro({ searchParams }: PageProps<"/admin/fin
         <table className="table-base">
           <thead><tr><th>Agência</th><th>Pedidos</th><th className="text-right">Vendas</th><th className="text-right">Comissão a pagar</th></tr></thead>
           <tbody>
-            {agencias.map((a: any) => (
+            {agencias.map((a) => (
               <tr key={a.agencia_id}>
                 <td className="font-semibold">{a.agencia_nome}</td>
                 <td>{a.qtd}</td>

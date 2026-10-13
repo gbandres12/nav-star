@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { ArrowRight, Armchair, Banknote, Calendar, Check, Clock, CreditCard, Loader2, Minus, Plus, QrCode, RefreshCw, Search, Ship, Sparkles, Ticket, Trash2, TriangleAlert, User, X } from "lucide-react";
+import { ArrowRight, Armchair, Banknote, Calendar, Check, Clock, CreditCard, Loader2, Minus, Phone, Plus, QrCode, RefreshCw, Search, Ship, Sparkles, Ticket, Trash2, TriangleAlert, User, X } from "lucide-react";
 import { Combobox } from "./combobox";
 import { QR } from "./qr";
 import { SeatMap } from "./seat-map";
@@ -56,7 +56,7 @@ type Props = {
   resumo: React.ReactNode;
 };
 
-type Pax = { key: number; assentoId?: string; comodoId: string; nome: string; documento: string; nascimento?: string; tipo: TipoPassageiro };
+type Pax = { key: number; assentoId?: string; comodoId: string; nome: string; documento: string; nascimento?: string; telefone?: string; tipo: TipoPassageiro };
 type Modo = "auto" | "mapa";
 type Passo = 1 | 2 | 3;
 
@@ -166,15 +166,21 @@ export function BalcaoFlow(p: Props) {
   }
 
   // Desconto do passageiro parte da tabela; tarifa de convênio é outro teto para a passagem.
+  // O desconto é sempre sobre a tarifa de tabela; o acréscimo do cômodo entra depois, sem desconto.
   const itens = pax.map((x) => {
     const acrescimo = modo === "mapa" && x.assentoId ? (p.acrescimos[x.assentoId] ?? 0) : 0;
     const desc = Math.min(1, Math.max(p.descontos[x.tipo] ?? 0, (conv?.descontoPercentual ?? 0) / 100));
-    const tarifa = Math.min(p.valor * (1 - desc), conv?.tarifaEspecial ?? Infinity);
-    return { key: x.key, valor: Math.round((tarifa + acrescimo) * 100) / 100, acrescimo };
+    const comDesconto = p.valor * (1 - desc);
+    const especial = conv?.tarifaEspecial != null && conv.tarifaEspecial < comDesconto;
+    const tarifa = especial ? conv!.tarifaEspecial! : comDesconto;
+    const taxa = ehColo(x) || p.isentosTaxa[x.tipo] ? 0 : p.taxa;
+    return { key: x.key, desc, especial, tarifa: Math.round(tarifa * 100) / 100, valor: Math.round((tarifa + acrescimo) * 100) / 100, acrescimo, taxa };
   });
-  const valorDe = (key: number) => itens.find((i) => i.key === key)?.valor ?? 0;
+  const itemDe = (key: number) => itens.find((i) => i.key === key);
+  const valorDe = (key: number) => itemDe(key)?.valor ?? 0;
   const subtotal = itens.reduce((s, i) => s + i.valor, 0);
-  const taxas = p.taxa * pax.filter((x) => !p.isentosTaxa[x.tipo]).length;
+  const taxas = itens.reduce((s, i) => s + i.taxa, 0);
+  const isentos = TIPOS.filter((t) => t.v !== "INTEIRA" && p.isentosTaxa[t.v]).map((t) => (t.v === "PCD" ? "PCD" : t.l.replace(" 60+", "").toLowerCase()));
   const total = subtotal + taxas;
   const podeTerAcrescimo = modo === "auto" && adultos.length > p.livresSemAcrescimo;
   const nomeGrupo = (x: Pax) => (ehColo(x) ? "Criança de colo" : (grupo(grupoDe(x))?.nome ?? "Poltrona"));
@@ -214,8 +220,8 @@ export function BalcaoFlow(p: Props) {
         pagoNoAto: true,
         metodo: conv?.faturado ? "FATURADO" : metodo,
         convenioId: convenioId || undefined,
-        comprador: { nome: comprador.nome || pax[0].nome, telefone: comprador.telefone, email: comprador.email },
-        passageiros: pax.map(({ assentoId, nome, documento, nascimento, tipo }) => ({ assentoId: modo === "mapa" && tipo !== "COLO" ? assentoId : undefined, nome, documento, nascimento: nascimento || undefined, tipo })),
+        comprador: { nome: comprador.nome || pax[0].nome, telefone: comprador.telefone || pax.find((x) => x.telefone)?.telefone || "", email: comprador.email },
+        passageiros: pax.map(({ assentoId, nome, documento, nascimento, telefone, tipo }) => ({ assentoId: modo === "mapa" && tipo !== "COLO" ? assentoId : undefined, nome, documento, nascimento: nascimento || undefined, telefone: telefone?.trim() || undefined, tipo })),
       });
       if (r?.erro) setErro(r.erro);
     });
@@ -302,6 +308,17 @@ export function BalcaoFlow(p: Props) {
                     </button>
                   </div>
                   <div className="p-5">
+                    <p className="mb-5 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                      <Ticket size={16} className="mt-0.5 shrink-0 text-rio-700" />
+                      {p.taxa > 0 ? (
+                        <span>
+                          Taxa de embarque deste trecho: <strong className="text-slate-900">{money(p.taxa)}</strong> por passageiro
+                          {isentos.length > 0 && <> (isentos: {isentos.join(", ")} e criança de colo)</>}.
+                        </span>
+                      ) : (
+                        <span>Este trecho não tem taxa de embarque.</span>
+                      )}
+                    </p>
                     {!p.assentoLivre && (
                       <div className="mb-5 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Como escolher a poltrona">
                         {([
@@ -403,6 +420,10 @@ export function BalcaoFlow(p: Props) {
                     ))}
                   </ul>
                 )}
+                <div className="flex justify-between border-t border-slate-200 px-5 py-3 text-sm">
+                  <span className={taxas > 0 ? "text-slate-600" : "text-slate-400"}>Taxa de embarque</span>
+                  <span className={taxas > 0 ? "font-semibold tabular-nums" : "text-slate-400"}>{taxas > 0 ? money(taxas) : p.taxa > 0 && pax.length ? "isento" : "não cobrada"}</span>
+                </div>
                 <div className="flex items-baseline justify-between border-t border-slate-200 bg-slate-50 px-5 py-4">
                   <span className="font-semibold text-slate-800">Total</span>
                   <span className="text-xl font-extrabold text-rio-900 tabular-nums">{money(total)}</span>
@@ -452,6 +473,13 @@ export function BalcaoFlow(p: Props) {
                         <input id={`nome-${x.key}`} className={campo} value={x.nome} onChange={(e) => editar(x.key, { nome: e.target.value })} placeholder="Digite o nome completo" />
                       </div>
                     </div>
+                    <div>
+                      <label className={rotulo} htmlFor={`tel-${x.key}`}>Telefone / WhatsApp <span className="font-normal text-slate-400">(opcional)</span></label>
+                      <div className="relative">
+                        <Phone size={17} className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-slate-400" />
+                        <input id={`tel-${x.key}`} className={campo} type="tel" inputMode="tel" autoComplete="off" value={x.telefone ?? ""} onChange={(e) => editar(x.key, { telefone: e.target.value })} placeholder="(92) 9 0000-0000" />
+                      </div>
+                    </div>
                     {!ehColo(x) && (
                       <div>
                         <label className={rotulo} htmlFor={`tipo-${x.key}`}>Tipo de passageiro</label>
@@ -471,6 +499,23 @@ export function BalcaoFlow(p: Props) {
                         <input id={`nasc-${x.key}`} type="date" min="1900-01-01" className={campo} value={x.nascimento ?? ""} onChange={(e) => editar(x.key, { nascimento: e.target.value })} />
                       </div>
                     </div>
+                    {(() => {
+                      const it = itemDe(x.key);
+                      if (!it) return null;
+                      return (
+                        <dl className="rounded-2xl bg-slate-50 p-4 text-sm">
+                          <div className="flex justify-between"><dt className="text-slate-500">Tarifa de tabela</dt><dd className="tabular-nums">{money(p.valor)}</dd></div>
+                          {it.especial ? (
+                            <div className="flex justify-between"><dt className="text-slate-500">Tarifa especial do convênio</dt><dd className="tabular-nums">{money(it.tarifa)}</dd></div>
+                          ) : it.desc > 0 ? (
+                            <div className="flex justify-between"><dt className="text-slate-500">Desconto de {Math.round(it.desc * 100)}% sobre a tabela</dt><dd className="tabular-nums text-emerald-700">− {money(p.valor - it.tarifa)}</dd></div>
+                          ) : null}
+                          {it.acrescimo > 0 && <div className="flex justify-between"><dt className="text-slate-500">Acréscimo do cômodo</dt><dd className="tabular-nums">+ {money(it.acrescimo)}</dd></div>}
+                          <div className="flex justify-between font-semibold"><dt>Passagem</dt><dd className="tabular-nums">{money(it.valor)}</dd></div>
+                          <div className="mt-1 flex justify-between border-t border-slate-200 pt-1"><dt className="text-slate-500">Taxa de embarque</dt><dd className="tabular-nums">{it.taxa > 0 ? money(it.taxa) : p.taxa > 0 ? "isento" : "não cobrada"}</dd></div>
+                        </dl>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}

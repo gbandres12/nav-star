@@ -64,7 +64,7 @@ export function tarifaViagem(v: Viagem, origem: number, destino: number) {
 }
 
 export function resumoCaixa(c: CaixaSessao) {
-  const pags = _db.pedidos.flatMap((p) => p.pagamentos.map((pg) => ({ pg, pedido: p }))).filter((x) => x.pg.status === "APROVADO" && (x.pedido as any).caixaId === c.id);
+  const pags = _db.pedidos.flatMap((p) => p.pagamentos.map((pg) => ({ pg, pedido: p }))).filter((x) => x.pg.status === "APROVADO" && x.pg.caixaId === c.id);
   const porMetodo = new Map<string, { qtd: number; valor: number }>();
   for (const p of pags) {
     const m = porMetodo.get(p.pg.metodo) ?? { qtd: 0, valor: 0 };

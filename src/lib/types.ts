@@ -328,7 +328,7 @@ export type NovoPedidoInput = {
   canal: CanalVenda;
   comprador: { nome: string; email?: string; telefone: string };
   // assentoId vazio = o sistema escolhe a poltrona (compra sem marcar assento)
-  passageiros: { assentoId?: string; nome: string; documento: string; nascimento?: string; tipo: TipoPassageiro }[];
+  passageiros: { assentoId?: string; nome: string; documento: string; nascimento?: string; telefone?: string; tipo: TipoPassageiro }[];
   metodo: MetodoPagamento;
   vendedorId?: string;
   convenioId?: string; // só balcão/agência

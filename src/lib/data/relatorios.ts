@@ -1,9 +1,44 @@
 import "server-only";
 import { createClient } from "../supabase/server";
 import { mapLinha, mapViagem, mapPedido, mapPassagem, mapEncomenda, mapCidade, mapPorto, mapEmbarcacao, mapUsuario, mapAgencia } from "./map";
-import type { Cancelamento, CaixaSessao, Convenio } from "../types";
+import type { Cancelamento, CaixaSessao, Convenio, Configuracao } from "../types";
 import type { Db } from "../types";
 import { Filtros } from "../relatorios";
+
+type DbCaixaComMovimentos = {
+  id: string;
+  usuario_id: string;
+  aberto_em: string;
+  fechado_em: string | null;
+  valor_abertura: number | string;
+  valor_fechamento: number | string | null;
+  observacao: string | null;
+  caixa_movimentos: {
+    tipo: "SANGRIA" | "SUPRIMENTO";
+    valor: number | string;
+    observacao: string | null;
+    created_at: string;
+  }[];
+};
+
+type DbCancelamentoRow = {
+  id: string;
+  pedido_id: string;
+  passagem_ids: string[] | null;
+  motivo: string;
+  valor_pago: number | string;
+  multa: number | string;
+  reembolso: number | string;
+  usuario_id: string | null;
+  created_at: string;
+};
+
+type DbConvenioRow = {
+  id: string;
+  nome: string;
+  desconto_percentual: number | string;
+  faturado: boolean;
+};
 
 export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
   const supabase = await createClient();
@@ -31,12 +66,12 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
     { data: conveniosData },
     { data: configData }
   ] = await Promise.all([
-    supabase.from("viagens").select("*"),
-    supabase.from("pedidos").select("*, pagamentos(*)"),
-    supabase.from("passagens").select("*"),
-    supabase.from("encomendas").select("*, encomenda_eventos(*)"),
-    (supabase as any).from("cancelamentos").select("*"),
-    supabase.from("caixa_sessoes").select("*, caixa_movimentos(*)"),
+    supabase.from("viagens").select("*").gte("partida", inicio).lte("partida", fim),
+    supabase.from("pedidos").select("*, pagamentos(*)").gte("created_at", inicio).lte("created_at", fim),
+    supabase.from("passagens").select("*").gte("created_at", inicio).lte("created_at", fim),
+    supabase.from("encomendas").select("*, encomenda_eventos(*)").gte("created_at", inicio).lte("created_at", fim),
+    supabase.from("cancelamentos").select("*").gte("created_at", inicio).lte("created_at", fim),
+    supabase.from("caixa_sessoes").select("*, caixa_movimentos(*)").gte("aberto_em", inicio).lte("aberto_em", fim),
     supabase.from("linhas").select("*"),
     supabase.from("paradas_linha").select("*"),
     supabase.from("tarifas_trecho").select("*"),
@@ -47,14 +82,14 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
     supabase.from("assentos").select("*"),
     supabase.from("perfis").select("*"),
     supabase.from("agencias").select("*"),
-    (supabase as any).from("convenios").select("*"),
-    (supabase as any).from("configuracoes_bilhete").select("*").maybeSingle()
+    supabase.from("convenios").select("*"),
+    supabase.from("configuracoes_bilhete").select("*").maybeSingle()
   ]);
 
   const viagens = (viagensData || []).map(mapViagem);
-  const pedidos = (pedidosData || []).map((p: any) => mapPedido(p, p.pagamentos || []));
+  const pedidos = (pedidosData || []).map((p) => mapPedido(p, p.pagamentos || []));
   const passagens = (passagensData || []).map(mapPassagem);
-  const encomendasBrutas = (encomendasData || []).map((e: any) => mapEncomenda(e, e.encomenda_eventos || []));
+  const encomendasBrutas = (encomendasData || []).map((e) => mapEncomenda(e, e.encomenda_eventos || []));
   const cidades = (cidadesData || []).map(mapCidade);
   // No app a cidade é o slug; aqui as linhas vêm sem join, então converte uuid → slug
   const slugPorUuid = new Map((cidadesData || []).map((c: { id: string; slug?: string | null }) => [c.id, c.slug ?? c.id]));
@@ -63,26 +98,26 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
   const portos = (portosData || []).map(mapPorto).map((p) => ({ ...p, cidadeId: slug(p.cidadeId) }));
   
   const assentos = (assentosData || []);
-  const embarcacoes = (embarcacoesData || []).map((e: any) => 
-    mapEmbarcacao(e, assentos.filter((a: any) => a.embarcacao_id === e.id))
+  const embarcacoes = (embarcacoesData || []).map((e) => 
+    mapEmbarcacao(e, assentos.filter((a) => a.embarcacao_id === e.id))
   );
 
-  const usuarios = (usuariosData || []).map((u: any) => mapUsuario(u, []));
+  const usuarios = (usuariosData || []).map((u) => mapUsuario(u, []));
   const agencias = (agenciasData || []).map(mapAgencia).map((a) => ({ ...a, cidadeId: slug(a.cidadeId) }));
 
   const paradas = (paradasData || []);
   const tarifas = (tarifasData || []);
   const horarios = (horariosData || []);
-  const linhas = (linhasData || []).map((l: any) => 
+  const linhas = (linhasData || []).map((l) => 
     mapLinha(
       l, 
-      paradas.filter((p: any) => p.linha_id === l.id),
-      tarifas.filter((t: any) => t.linha_id === l.id),
-      horarios.filter((h: any) => h.linha_id === l.id)
+      paradas.filter((p) => p.linha_id === l.id),
+      tarifas.filter((t) => t.linha_id === l.id),
+      horarios.filter((h) => h.linha_id === l.id)
     )
   );
 
-  const cancelamentos = (cancelamentosData || []).map((c: any): Cancelamento => ({
+  const cancelamentos = ((cancelamentosData || []) as unknown as DbCancelamentoRow[]).map((c): Cancelamento => ({
     id: c.id,
     pedidoId: c.pedido_id,
     passagemIds: c.passagem_ids || [],
@@ -90,11 +125,11 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
     valorPago: Number(c.valor_pago),
     multa: Number(c.multa),
     reembolso: Number(c.reembolso),
-    usuarioId: c.usuario_id,
+    usuarioId: c.usuario_id || undefined,
     createdAt: c.created_at
   }));
 
-  const caixas = (caixasData || []).map((c: any): CaixaSessao => ({
+  const caixas = ((caixasData || []) as unknown as DbCaixaComMovimentos[]).map((c): CaixaSessao => ({
     id: c.id,
     usuarioId: c.usuario_id,
     abertoEm: c.aberto_em,
@@ -102,7 +137,7 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
     valorAbertura: Number(c.valor_abertura),
     valorContado: c.valor_fechamento ? Number(c.valor_fechamento) : undefined,
     observacao: c.observacao || undefined,
-    movimentos: (c.caixa_movimentos || []).map((m: any) => ({
+    movimentos: (c.caixa_movimentos || []).map((m) => ({
       tipo: m.tipo,
       valor: Number(m.valor),
       observacao: m.observacao || "",
@@ -110,7 +145,7 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
     }))
   }));
 
-  const convenios = (conveniosData || []).map((c: any): Convenio => ({
+  const convenios = ((conveniosData || []) as unknown as DbConvenioRow[]).map((c): Convenio => ({
     id: c.id,
     nome: c.nome,
     descontoPercentual: Number(c.desconto_percentual),
@@ -118,7 +153,7 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
     ativo: true
   }));
 
-  const conf = configData ? {
+  const conf: Configuracao = configData ? {
     empresa: {
       nome: configData.titulo || "Empresa",
       razaoSocial: "Razão Social",
@@ -138,7 +173,7 @@ export async function buscarBaseDeDadosParaRelatorios(f: Filtros): Promise<Db> {
       taxaSistemaPct: 0.05
     },
     bilhete: {
-      larguraMm: configData.largura_mm || 80,
+      larguraMm: (configData.largura_mm === 58 ? 58 : 80) as 80 | 58,
       titulo: configData.titulo || "BILHETE DE PASSAGEM",
       mostrarLogo: configData.mostrar_logo,
       mostrarValores: configData.mostrar_valores,

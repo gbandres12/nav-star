@@ -10,11 +10,9 @@ import type { NovoPedidoInput } from "./types";
 export type CheckoutState = { erro?: string } | undefined;
 
 export async function finalizarCompra(input: NovoPedidoInput): Promise<CheckoutState> {
-  let vendedorId: string | undefined;
   if (input.canal !== "SITE") {
     const a = await exigirPapel("ADMIN", "GERENTE", "VENDEDOR");
     if (a.erro) return { erro: a.erro };
-    vendedorId = a.op!.id;
   }
   
   const payload = {

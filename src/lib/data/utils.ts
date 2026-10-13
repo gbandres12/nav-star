@@ -1,11 +1,11 @@
 import "server-only";
 import { cache } from "react";
 import { CONFIG_PADRAO } from "../padroes";
-import { addMinutes, localDayKey } from "../format";
+import { addMinutes } from "../format";
 import { cidades, portos, linhas, embarcacoes } from "./catalogo";
 import { assentosOcupados, viagensAdmin, viagem } from "./viagens";
 import { festivaisNoSite } from "./festivais";
-import type { Configuracao, TipoPassageiro, Viagem, Festival, Passagem } from "../types";
+import type { Configuracao, TipoPassageiro, Viagem, Festival } from "../types";
 import { createClient } from "../supabase/server";
 import { taxaEmbarqueTrecho } from "./precos";
 import { mapPassagem } from "./map";
