@@ -22,13 +22,13 @@ export function AcessoAgencia({ empresaId }: { empresaId: string }) {
       </div>
 
       {aba === "entrar" ? (
-        <ActionForm action={entrarAgenciaAction} submit="Entrar" manterValores className="space-y-3">
+        <ActionForm key="entrar" action={entrarAgenciaAction} submit="Entrar" manterValores className="space-y-3">
           <input type="hidden" name="empresaId" value={empresaId} />
           <Campo label="E-mail"><input name="email" type="email" required autoComplete="username" className="input" /></Campo>
           <Campo label="Senha"><input name="senha" type="password" required autoComplete="current-password" className="input" /></Campo>
         </ActionForm>
       ) : (
-        <ActionForm action={cadastrarAgenciaAction} submit="Enviar cadastro" limparAoSalvar manterValores className="space-y-3">
+        <ActionForm key="cadastrar" action={cadastrarAgenciaAction} submit="Enviar cadastro" limparAoSalvar manterValores className="space-y-3">
           <input type="hidden" name="empresaId" value={empresaId} />
           <Campo label="Nome da agência"><input name="nome" required className="input" /></Campo>
           <Campo label="CNPJ ou CPF (opcional)"><input name="documento" inputMode="numeric" className="input" /></Campo>
