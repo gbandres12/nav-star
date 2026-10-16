@@ -32,6 +32,7 @@ import {
   ShoppingCart,
   Store,
   Handshake,
+  Sailboat,
   Ticket,
   User,
   UserRound,
@@ -95,6 +96,7 @@ const GRUPOS: Grupo[] = [
     i: CalendarRange,
     itens: [
       { href: "/admin/viagens", l: "Viagens", i: CalendarRange },
+      { href: "/admin/viagens/extras", l: "Viagens extras", i: Sailboat },
       { href: "/admin/mapa", l: "Mapa de embarcações", i: MapIcon },
       { href: "/admin/encomendas", l: "Encomendas", i: Package },
     ],
@@ -136,7 +138,12 @@ const GRUPOS: Grupo[] = [
 export function Sidebar({ papel }: { papel: PapelUsuario }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
-  const ativo = (href: string) => (href === "/admin" ? path === "/admin" : path === href || path.startsWith(href + "/"));
+  const ativo = (href: string) =>
+    href === "/admin"
+      ? path === "/admin"
+      : href === "/admin/viagens" && path.startsWith("/admin/viagens/extras")
+        ? false // "Viagens extras" tem item próprio
+        : path === href || path.startsWith(href + "/");
   const grupos = GRUPOS.map((g) => ({ ...g, itens: g.itens.filter((i) => podeAcessar(papel, i.href)) })).filter((g) => g.itens.length);
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
   const aberto = (t: string, itens: Item[]) => abertos[t] ?? itens.some((i) => ativo(i.href));
